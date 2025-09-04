@@ -17,6 +17,7 @@ const Register = () => {
   const [error, setError] = useState("");
   const [showTermsPopup, setShowTermsPopup] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -33,6 +34,9 @@ const Register = () => {
       return;
     }
 
+    setIsSubmitting(true); // Start loading
+    setError(""); // Clear previous errors
+
     try {
       const response = await axios.post("http://localhost:5555/api/auth/register", {
         firstName,
@@ -48,15 +52,34 @@ const Register = () => {
         termsAccepted // Include terms acceptance in the data sent to API
       });
 
+      // REPLACE the success alert in your Register.js handleSubmit function with this:
       if (response.data.success) {
-        alert("Registration Successful! Redirecting to login...");
+        // Updated success message to reflect no automatic subscription creation
+        alert(
+          "🎉 Registration Successful!\n\n" +
+          "✅ Your account has been created and approved\n" +
+          "📧 Welcome email sent to " + email + "\n" +
+          "🔑 Please check your email for details\n\n" +
+          "⚠️ IMPORTANT: Your account is currently non-activated.\n" +
+          "After signing in, you must choose a subscription plan (Free or Premium) to access the platform features."
+        );
         navigate("/signin");
       } else {
         setError(response.data.message);
       }
     } catch (error) {
-      setError("Error registering user");
       console.error("Registration Error:", error);
+
+      // Handle different error scenarios
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+        setError("Unable to connect to server. Please check your internet connection and try again.");
+      } else {
+        setError("Registration failed. Please try again later.");
+      }
+    } finally {
+      setIsSubmitting(false); // Stop loading
     }
   };
 
@@ -77,7 +100,7 @@ const Register = () => {
   return (
     <div style={styles.container}>
       <div style={styles.background}></div>
-      
+
       {/* Terms & Conditions Popup */}
       {showTermsPopup && (
         <div style={styles.popupOverlay}>
@@ -89,7 +112,7 @@ const Register = () => {
             <div style={styles.termsContent}>
               <h3>Explore Sri Lanka operated by Sixt5 Pvt Ltd.</h3>
               <p><strong>Effective Date:</strong> 12 August 2025</p>
-              
+
               <p>Please read these Terms & Conditions ("Terms") carefully. These Terms govern your access to and use of the mobile application known as Explore Sri Lanka, its associated web application, and related services, all of which are owned and operated by Sixt5 Pvt Ltd ("we", "us", "our", or "the Service"). By registering, accessing, or using the Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.</p>
 
               <h4>1. Scope</h4>
@@ -166,6 +189,7 @@ const Register = () => {
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -177,6 +201,7 @@ const Register = () => {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
+              disabled={isSubmitting}
             />
           </div>
         </div>
@@ -189,6 +214,7 @@ const Register = () => {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             required
+            disabled={isSubmitting}
           />
         </div>
 
@@ -200,6 +226,7 @@ const Register = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={isSubmitting}
           />
         </div>
 
@@ -211,6 +238,7 @@ const Register = () => {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
+            disabled={isSubmitting}
           />
         </div>
 
@@ -223,6 +251,7 @@ const Register = () => {
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
               required
+              disabled={isSubmitting}
             />
           </div>
           <div style={styles.formGroup}>
@@ -233,6 +262,7 @@ const Register = () => {
               value={businessRegNo}
               onChange={(e) => setBusinessRegNo(e.target.value)}
               required
+              disabled={isSubmitting}
             />
           </div>
         </div>
@@ -245,6 +275,7 @@ const Register = () => {
             value={businessAddress}
             onChange={(e) => setBusinessAddress(e.target.value)}
             required
+            disabled={isSubmitting}
           />
         </div>
 
@@ -255,6 +286,7 @@ const Register = () => {
             value={userType}
             onChange={(e) => setUserType(e.target.value)}
             required
+            disabled={isSubmitting}
           >
             <option value="">-- Select User Type --</option>
             <option value="Individual">Individual</option>
@@ -271,6 +303,7 @@ const Register = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            disabled={isSubmitting}
           />
         </div>
 
@@ -282,6 +315,7 @@ const Register = () => {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
+            disabled={isSubmitting}
           />
         </div>
 
@@ -293,31 +327,42 @@ const Register = () => {
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
               style={styles.checkbox}
+              disabled={isSubmitting}
             />
             I agree to the{" "}
-            <button 
-              type="button" 
-              style={styles.termsLink} 
+            <button
+              type="button"
+              style={styles.termsLink}
               onClick={handleTermsClick}
+              disabled={isSubmitting}
             >
               Terms & Conditions
             </button>
           </label>
         </div>
 
-        <button 
+        <button
           type="submit"
           style={{
             ...styles.button,
-            opacity: termsAccepted ? 1 : 0.6,
-            cursor: termsAccepted ? 'pointer' : 'not-allowed'
+            opacity: (!termsAccepted || isSubmitting) ? 0.6 : 1,
+            cursor: (!termsAccepted || isSubmitting) ? 'not-allowed' : 'pointer'
           }}
-          disabled={!termsAccepted}
+          disabled={!termsAccepted || isSubmitting}
         >
-          Register
+          {isSubmitting ? 'Creating Account...' : 'Register'}
         </button>
         <br />
-        <a href="/signin" style={styles.link}>If You Already Have an Account</a>
+        <a
+          href="/signin"
+          style={{
+            ...styles.link,
+            pointerEvents: isSubmitting ? 'none' : 'auto',
+            opacity: isSubmitting ? 0.5 : 1
+          }}
+        >
+          If You Already Have an Account
+        </a>
       </form>
     </div>
   );

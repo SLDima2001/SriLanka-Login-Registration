@@ -7,9 +7,9 @@ const SignIn = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false); // Add loading state
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
-  
+
   // Get login function from AuthContext
   const { login } = useContext(AuthContext);
 
@@ -17,60 +17,73 @@ const SignIn = () => {
     navigate("/adminsignin");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(""); // Clear previous errors
-    setIsLoggingIn(true); // Set loading state
+  // REPLACE the handleSubmit function in your SignIn.js component with this:
+// REPLACE your handleSubmit function in your Login component with this:
 
-    try {
-      const response = await axios.post("http://localhost:5555/api/auth/login", {
-        email,
-        password,
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  setIsLoggingIn(true);
+
+  try {
+    const response = await axios.post("http://localhost:5555/api/auth/login", {
+      email,
+      password,
+    });
+
+    if (response.data.success) {
+      // Create user object with available data
+      const userData = {
+        email: email,
+        status: response.data.status,
+        firstName: response.data.user?.firstName || '',
+        lastName: response.data.user?.lastName || '',
+        phone: response.data.user?.phone || '',
+        userId: response.data.user?.userId || response.data.user?._id,
+        _id: response.data.user?._id,
+        // Include all user data from response
+        ...response.data.user
+      };
+
+      console.log('🔐 Login successful, processing server response...');
+      console.log('Server response:', {
+        subscriptionStatus: response.data.subscriptionStatus,
+        redirectTo: response.data.redirectTo,
+        hasSubscription: !!response.data.subscription
       });
 
-      if (response.data.success) {
-        // Create user object with available data
-        const userData = {
-          email: email,
-          status: response.data.status,
-          // Add other user fields if your backend returns them
-          firstName: response.data.user?.firstName || '',
-          lastName: response.data.user?.lastName || '',
-          phone: response.data.user?.phone || '',
-          userId: response.data.user?.userId || response.data.user?._id,
-          _id: response.data.user?._id,
-          // Include all user data from response
-          ...response.data.user
-        };
-        
-        console.log('Login successful, checking subscription status...');
-        
-        // Use the enhanced login function from AuthContext
-        const hasActiveSubscription = await login(userData);
-        
-        alert("Login Successful!");
-        
-        console.log('Subscription check result:', hasActiveSubscription);
-        
-        // Navigate based on subscription status
-        if (hasActiveSubscription) {
-          console.log('User has active subscription, redirecting to Business Profile');
-          navigate("/Business-Profile");
-        } else {
-          console.log('User has no active subscription, redirecting to Subscription Page');
-          navigate("/SubscriptionPage");
-        }
-        
+      // ✅ Use the enhanced login function from AuthContext with server response
+      const subscriptionResult = await login(userData, {
+        subscriptionStatus: response.data.subscriptionStatus,
+        redirectTo: response.data.redirectTo,
+        subscription: response.data.subscription
+      });
+
+      console.log('📊 Final subscription result:', subscriptionResult);
+
+      // SUCCESS MESSAGE
+      alert("Login Successful!");
+
+      // ✅ FIXED ROUTING: Use server's redirect instruction
+      if (response.data.redirectTo === 'business-profile') {
+        console.log('➡️  Redirecting to Business Profile (user has active subscription)');
+        navigate("/Business-Profile");
       } else {
-        setError(response.data.message);
+        // All non-activated users (including newly registered) go to subscription page
+        console.log('➡️  Redirecting to Subscription Page (non-activated user)');
+        navigate("/SubscriptionPage");
       }
-    } catch (error) {
-      setError("Invalid login credentials");
-      console.error("Login Error:", error);
-    } finally {
-      setIsLoggingIn(false); // Clear loading state
+
+    } else {
+      setError(response.data.message);
     }
-  };
+  } catch (error) {
+    setError("Invalid login credentials");
+    console.error("❌ Login Error:", error);
+  } finally {
+    setIsLoggingIn(false);
+  }
+};
 
   return (
     <div style={styles.container}>
@@ -78,33 +91,33 @@ const SignIn = () => {
       <form onSubmit={handleSubmit} style={styles.form}>
         <h2 style={styles.title}>Sign In</h2>
         {error && <p style={styles.error}>{error}</p>}
-        
+
         <div style={styles.formGroup}>
           <label style={styles.label}>Email:</label>
-          <input 
-            type="email" 
-            style={styles.input} 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
+          <input
+            type="email"
+            style={styles.input}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
             disabled={isLoggingIn}
           />
         </div>
 
         <div style={styles.formGroup}>
           <label style={styles.label}>Password:</label>
-          <input 
-            type="password" 
-            style={styles.input} 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
+          <input
+            type="password"
+            style={styles.input}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
             disabled={isLoggingIn}
           />
         </div>
 
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           style={{
             ...styles.button,
             ...(isLoggingIn ? styles.buttonDisabled : {})
@@ -120,15 +133,25 @@ const SignIn = () => {
             'Log In'
           )}
         </button>
-        
+
         <a href="/register" style={styles.link}>Sign Up</a>
-        <a href="/forgot-password" style={{color:'blue'}}>forgot password</a>
+        <a href="/forgot-password" style={{ color: 'blue' }}>forgot password</a>
+
+        {/* ADD ADMIN LOGIN BUTTON */}
+        {/* <button 
+          type="button"
+          onClick={adminlogin}
+          style={styles.adminButton}
+          disabled={isLoggingIn}
+        >
+          Admin Login
+        </button> */}
       </form>
     </div>
   );
 };
 
-// Styles with background effects and animations
+// Styles remain the same...
 const styles = {
   container: {
     display: "flex",
@@ -157,8 +180,8 @@ const styles = {
     marginTop: "10px",
     textDecoration: "none",
     fontWeight: "bold",
-    border:'1px solid blue',
-    padding:'10px 20px',
+    border: '1px solid blue',
+    padding: '10px 20px',
   },
   form: {
     position: "relative",
@@ -207,11 +230,24 @@ const styles = {
     fontSize: "16px",
     cursor: "pointer",
     transition: "background 0.3s ease",
+    marginBottom: "10px",
   },
   buttonDisabled: {
     opacity: 0.6,
     cursor: "not-allowed",
     backgroundColor: "#ccc",
+  },
+  adminButton: {
+    width: "100%",
+    padding: "10px",
+    backgroundColor: "rgba(108, 117, 125, 0.8)",
+    color: "white",
+    border: "none",
+    borderRadius: "5px",
+    fontSize: "14px",
+    cursor: "pointer",
+    marginTop: "15px",
+    transition: "background 0.3s ease",
   },
   spinner: {
     width: '16px',

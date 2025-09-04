@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../src/AuthContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { subscriptionUtils } from '../src/subscriptionUtils';
 
 const BusinessUserProfile = () => {
   const { user, logout } = useContext(AuthContext);
@@ -61,66 +62,97 @@ const BusinessUserProfile = () => {
 
   // Helper function to get subscription limits
   const getSubscriptionLimits = () => {
-    const plan = subscription.plan || 'Free';
-    if (plan.toLowerCase() === 'premium') {
+    console.log('Current subscription:', subscription);
+
+    // Check if user has an active premium subscription
+    if (subscription.planName &&
+      subscription.planName.toLowerCase() === 'premium' &&
+      subscription.status === 'active' &&
+      !isSubscriptionExpired()) {
       return {
         maxBusinesses: 3,
         maxOffers: 9
       };
     }
-    return {
-      maxBusinesses: 1,
-      maxOffers: 3
-    };
+
+    // Default to free plan limits (including when subscription is null/undefined)
+    return subscriptionUtils.getSubscriptionLimits(subscription);
   };
 
   // Helper function to check if user can add more businesses
   const canAddBusiness = () => {
     const limits = getSubscriptionLimits();
-    return businesses.length < limits.maxBusinesses;
+    return subscriptionUtils.canAddBusiness(businesses.length, subscription);
   };
 
   // Helper function to check if user can add more offers
   const canAddOffer = () => {
     const limits = getSubscriptionLimits();
-    return offers.length < limits.maxOffers;
+    return subscriptionUtils.canAddOffer(offers.length, subscription);
   };
 
   // Helper function to get limit message
   const getLimitMessage = (type) => {
     const limits = getSubscriptionLimits();
-    const plan = subscription.plan || 'Free';
-    
+    const planName = subscription.planName || 'Free';
+
     if (type === 'business') {
-      return `${plan} plan allows maximum ${limits.maxBusinesses} business${limits.maxBusinesses > 1 ? 'es' : ''}. You have ${businesses.length}/${limits.maxBusinesses} businesses.`;
+      return subscriptionUtils.getLimitMessage('business', businesses.length, subscription);
     } else if (type === 'offer') {
-      return `${plan} plan allows maximum ${limits.maxOffers} offers. You have ${offers.length}/${limits.maxOffers} offers.`;
+      return subscriptionUtils.getLimitMessage('offer', offers.length, subscription);
     }
   };
 
   // Check if user is currently a free user
   const isFreeUser = () => {
-    return !subscription.plan || subscription.plan.toLowerCase() === 'free';
+    return subscriptionUtils.isFreeUser(subscription);
   };
-
   // Check if user is currently a premium user
   const isPremiumUser = () => {
-    return subscription.plan && subscription.plan.toLowerCase() === 'premium';
+    return subscriptionUtils.isPremiumUser(subscription);
   };
 
   // Check if subscription is expired or about to expire
   const isSubscriptionExpired = () => {
-    if (!subscription.endDate) return false;
-    const now = new Date();
-    const endDate = new Date(subscription.endDate);
-    return now > endDate;
+    if (!subscription || !subscription.endDate) return false;
+    return new Date() > new Date(subscription.endDate);
   };
+
 
   // Check if user has an active subscription (not expired)
   const hasActiveSubscription = () => {
-    if (!subscription.plan || subscription.plan.toLowerCase() === 'free') return false;
-    if (!subscription.endDate) return true; // Lifetime subscription
-    return !isSubscriptionExpired();
+    if (!subscription) return false;
+    if (subscription.planId === '1') return true; // Free plan is always active
+    if (!subscription.endDate) return subscription.status === 'active'; // Lifetime subscription
+    return subscription.status === 'active' && !isSubscriptionExpired();
+  };
+
+  // Helper function to check if plan should be disabled
+  const isPlanDisabled = (planId) => {
+    // If user has active premium subscription, they shouldn't access this page
+    if (isPremiumUser() && hasActiveSubscription()) {
+      return true;
+    }
+
+    // If user already has free plan, disable free plan selection
+    if (planId === 1 && isFreeUser() && hasActiveSubscription) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Helper function to get plan disabled message
+  const getPlanDisabledMessage = (planId) => {
+    if (isPremiumUser() && hasActiveSubscription()) {
+      return "You already have the Premium plan - the best package available!";
+    }
+
+    if (planId === 1 && isFreeUser() && hasActiveSubscription) {
+      return "You already have the Free plan activated. Upgrade to Premium for more features!";
+    }
+
+    return "";
   };
 
   useEffect(() => {
@@ -133,7 +165,7 @@ const BusinessUserProfile = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+
       // Fetch user profile
       const profileResponse = await axios.post(
         'http://localhost:5555/api/user/profile-by-email',
@@ -145,7 +177,7 @@ const BusinessUserProfile = () => {
         const userData = profileResponse.data.user;
         setUserDetails(userData);
         setProfileForm(userData);
-        
+
         // Fetch user's businesses and offers
         await fetchBusinesses(userData.userId);
         await fetchOffers(userData.userId);
@@ -183,18 +215,49 @@ const BusinessUserProfile = () => {
     }
   };
 
+  // FIXED: This is the key function that was causing the issue
   const fetchSubscription = async (userId) => {
     try {
-      const response = await axios.get(`http://localhost:5555/api/subscription/user/${userId}`);
-      if (response.data.success) {
-        setSubscription(response.data.subscription);
+      console.log('Fetching subscription for userId:', userId);
+
+      const response = await axios.post('http://localhost:5555/api/user/check-subscription', {
+        userId: userId,
+        email: user.email
+      });
+
+      console.log('Subscription response:', response.data);
+
+      if (response.data.success && response.data.subscription) {
+        const subscriptionData = response.data.subscription;
+        setSubscription({
+          planId: subscriptionData.planId,
+          planName: subscriptionData.planName,
+          status: subscriptionData.status,
+          billingCycle: subscriptionData.billingCycle,
+          endDate: subscriptionData.endDate,
+          paymentMethod: subscriptionData.paymentMethod
+        });
+      } else {
+        // Set default free plan subscription
+        setSubscription({
+          planId: '1',
+          planName: 'Free',
+          status: 'active',
+          billingCycle: 'monthly',
+          endDate: null,
+          paymentMethod: 'free'
+        });
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
+      // Set default free plan subscription on error
       setSubscription({
-        plan: 'Free',
-        nextBillingDate: null,
-        status: 'active'
+        planId: '1',
+        planName: 'Free',
+        status: 'active',
+        billingCycle: 'monthly',
+        endDate: null,
+        paymentMethod: 'free'
       });
     }
   };
@@ -258,12 +321,13 @@ const BusinessUserProfile = () => {
           alert('Business updated successfully!');
         }
       } else {
-        // Check limit before creating new business
-        if (!canAddBusiness()) {
-          alert(getLimitMessage('business') + ' Please upgrade to Premium to add more businesses.');
+        // Check limit before creating new business using utility
+        if (!subscriptionUtils.canAddBusiness(businesses.length, subscription)) {
+          const limitMessage = subscriptionUtils.getLimitMessage('business', businesses.length, subscription);
+          alert(limitMessage + ' Please upgrade to Premium to add more businesses.');
           return;
         }
-        
+
         const response = await axios.post(
           'http://localhost:5555/api/businesses',
           { ...businessForm, userId: userDetails.userId }
@@ -275,22 +339,14 @@ const BusinessUserProfile = () => {
       }
       setShowBusinessModal(false);
       setEditingBusiness(null);
-      setBusinessForm({ 
-        name: '', 
-        address: '', 
-        phone: '', 
-        email: '', 
-        website: '', 
-        category: '',
-        socialMediaLinks: '',
-        operatingHours: '',
-        businessType: '',
-        registrationNumber: '',
-        taxId: ''
+      setBusinessForm({
+        name: '', address: '', phone: '', email: '', website: '', category: '',
+        socialMediaLinks: '', operatingHours: '', businessType: '',
+        registrationNumber: '', taxId: ''
       });
     } catch (error) {
       console.error('Error saving business:', error);
-      alert('Failed to save business');
+      alert(error.response?.data?.message || 'Failed to save business');
     }
   };
 
@@ -300,7 +356,7 @@ const BusinessUserProfile = () => {
       if (offerForm.startDate && offerForm.endDate) {
         const startDate = new Date(offerForm.startDate);
         const endDate = new Date(offerForm.endDate);
-        
+
         if (startDate >= endDate) {
           alert('End date must be after start date!');
           return;
@@ -317,19 +373,19 @@ const BusinessUserProfile = () => {
           alert('Offer updated successfully!');
         }
       } else {
-        // Check limit before creating new offer
-        if (!canAddOffer()) {
-          alert(getLimitMessage('offer') + ' Please upgrade to Premium to add more offers.');
+        // Check limit before creating new offer using utility
+        if (!subscriptionUtils.canAddOffer(offers.length, subscription)) {
+          const limitMessage = subscriptionUtils.getLimitMessage('offer', offers.length, subscription);
+          alert(limitMessage + ' Please upgrade to Premium to add more offers.');
           return;
         }
-        
+
         const response = await axios.post(
           'http://localhost:5555/api/offers',
           { ...offerForm, userId: userDetails.userId }
         );
-        
+
         if (response.data.success) {
-          // Send email notification for new offer
           await sendOfferNotification(offerForm);
           await fetchOffers(userDetails.userId);
           alert('Offer created successfully! Email notification sent.');
@@ -337,28 +393,22 @@ const BusinessUserProfile = () => {
       }
       setShowOfferModal(false);
       setEditingOffer(null);
-      setOfferForm({ 
-        businessId: '', 
-        title: '', 
-        discount: '', 
-        startDate: '', 
-        endDate: '', 
-        category: '', 
-        isActive: true 
+      setOfferForm({
+        businessId: '', title: '', discount: '', startDate: '',
+        endDate: '', category: '', isActive: true
       });
     } catch (error) {
       console.error('Error saving offer:', error);
-      alert('Failed to save offer');
+      alert(error.response?.data?.message || 'Failed to save offer');
     }
   };
-
   // Send email notification when offer starts
   const sendOfferNotification = async (offerData) => {
     try {
       const business = businesses.find(b => b._id === offerData.businessId);
       const startDate = new Date(offerData.startDate);
       const today = new Date();
-      
+
       // If start date is today or in the past, send notification immediately
       if (startDate <= today) {
         await axios.post('http://localhost:5555/api/send-offer-notification', {
@@ -427,28 +477,28 @@ const BusinessUserProfile = () => {
   };
 
   // Handle subscription page navigation
-  const handleSubscriptionNavigation = () => {
-    // Premium users cannot access subscription page (they have the best plan)
-    if (isPremiumUser() && hasActiveSubscription()) {
-      alert('You already have the Premium plan - the best package available!');
-      return;
-    }
-    
-    // If premium subscription expired, allow access to subscription page
-    if (isPremiumUser() && !hasActiveSubscription()) {
-      navigate('/subscription');
-      return;
-    }
-    
-    // Free users can access subscription page
-    if (isFreeUser()) {
-      navigate('/subscription');
-      return;
-    }
-    
-    // Default navigation for other cases
-    navigate('/subscription');
-  };
+const handleSubscriptionNavigation = () => {
+  // Premium users cannot access subscription page (they have the best plan)
+  if (isPremiumUser() && hasActiveSubscription()) {
+    alert('You already have the Premium plan - the best package available!');
+    return;
+  }
+
+  // If premium subscription expired, allow access to subscription page
+  if (isPremiumUser() && !hasActiveSubscription()) {
+    navigate('/SubscriptionPage'); // Fixed: changed from '/subscription' to '/SubscriptionPage'
+    return;
+  }
+
+  // Free users can access subscription page
+  if (isFreeUser()) {
+    navigate('/SubscriptionPage'); // Fixed: changed from '/subscription' to '/SubscriptionPage'
+    return;
+  }
+
+  // Default navigation for other cases
+  navigate('/SubscriptionPage'); // Fixed: changed from '/subscription' to '/SubscriptionPage'
+};
 
   // Get subscription status display
   const getSubscriptionStatusDisplay = () => {
@@ -460,7 +510,7 @@ const BusinessUserProfile = () => {
         buttonText: 'Already Premium'
       };
     }
-    
+
     if (isPremiumUser() && !hasActiveSubscription()) {
       return {
         status: 'Premium (Expired)',
@@ -469,7 +519,7 @@ const BusinessUserProfile = () => {
         buttonText: 'Renew Premium'
       };
     }
-    
+
     if (isFreeUser()) {
       return {
         status: 'Free Plan',
@@ -478,9 +528,9 @@ const BusinessUserProfile = () => {
         buttonText: 'Upgrade to Premium'
       };
     }
-    
+
     return {
-      status: subscription.plan || 'Free',
+      status: subscription.planName || 'Free',
       message: 'Manage your subscription',
       showUpgrade: true,
       buttonText: 'Manage Subscription'
@@ -492,10 +542,10 @@ const BusinessUserProfile = () => {
     const now = new Date();
     const startDate = offer.startDate ? new Date(offer.startDate) : null;
     const endDate = offer.endDate ? new Date(offer.endDate) : null;
-    
+
     if (startDate && startDate > now) return false; // Not started yet
     if (endDate && endDate < now) return false; // Already ended
-    
+
     return offer.isActive; // Return the manual active status
   };
 
@@ -515,9 +565,9 @@ const BusinessUserProfile = () => {
       {/* Header Section */}
       <div style={styles.header}>
         <div style={styles.profileSection}>
-          <img 
-            src="https://via.placeholder.com/60" 
-            alt="Profile" 
+          <img
+            src="https://via.placeholder.com/60"
+            alt="Profile"
             style={styles.avatar}
           />
           <div style={styles.userInfo}>
@@ -525,10 +575,13 @@ const BusinessUserProfile = () => {
               {userDetails.firstName} {userDetails.lastName}
             </h2>
             <p style={styles.userEmail}>{userDetails.email}</p>
+            <p style={{ margin: 0, color: '#28a745', fontSize: '0.8rem', fontWeight: '600' }}>
+              {subscription.planName || 'Free'} Plan
+            </p>
           </div>
         </div>
         <div style={styles.headerActions}>
-          <button 
+          <button
             style={styles.logoutButton}
             onClick={() => {
               if (window.confirm('Are you sure you want to logout?')) {
@@ -545,7 +598,7 @@ const BusinessUserProfile = () => {
       {/* Navigation Tabs */}
       <div style={styles.tabs}>
         {['profile', 'businesses', 'offers', 'subscription', 'notifications'].map((tab) => (
-          <button 
+          <button
             key={tab}
             style={activeTab === tab ? styles.activeTab : styles.tab}
             onClick={() => setActiveTab(tab)}
@@ -579,11 +632,11 @@ const BusinessUserProfile = () => {
                 )}
               </div>
             </div>
-            
+
             <div style={styles.profileGrid}>
               {Object.entries({
                 'First Name': 'firstName',
-                'Last Name': 'lastName', 
+                'Last Name': 'lastName',
                 'Email': 'email',
                 'Phone': 'phone',
                 'Address': 'address',
@@ -594,7 +647,7 @@ const BusinessUserProfile = () => {
                   {field === 'userType' ? (
                     <select
                       value={profileForm[field] || ''}
-                      onChange={(e) => setProfileForm({...profileForm, [field]: e.target.value})}
+                      onChange={(e) => setProfileForm({ ...profileForm, [field]: e.target.value })}
                       disabled={!editMode}
                       style={editMode ? styles.input : styles.disabledInput}
                     >
@@ -607,7 +660,7 @@ const BusinessUserProfile = () => {
                     <input
                       type={field === 'email' ? 'email' : field === 'phone' ? 'tel' : 'text'}
                       value={profileForm[field] || ''}
-                      onChange={(e) => setProfileForm({...profileForm, [field]: e.target.value})}
+                      onChange={(e) => setProfileForm({ ...profileForm, [field]: e.target.value })}
                       disabled={!editMode}
                       style={editMode ? styles.input : styles.disabledInput}
                     />
@@ -626,19 +679,22 @@ const BusinessUserProfile = () => {
                 <h3>My Businesses ({businesses.length})</h3>
                 <p style={styles.limitText}>{getLimitMessage('business')}</p>
               </div>
-              <button 
-                style={canAddBusiness() ? styles.addButton : styles.disabledButton}
+              <button
+                style={subscriptionUtils.canAddBusiness(businesses.length, subscription) ? styles.addButton : styles.disabledButton}
                 onClick={() => {
-                  if (!canAddBusiness()) {
-                    alert(getLimitMessage('business') + ' Please upgrade to Premium to add more businesses.');
+                  if (!subscriptionUtils.canAddBusiness(businesses.length, subscription)) {
+                    const limitMessage = subscriptionUtils.getLimitMessage('business', businesses.length, subscription);
+                    alert(limitMessage + ' Please upgrade to Premium to add more businesses.');
                     return;
                   }
-                  setBusinessForm({ 
-                    name: '', 
-                    address: '', 
-                    phone: '', 
-                    email: '', 
-                    website: '', 
+
+                  // Reset the form for new business
+                  setBusinessForm({
+                    name: '',
+                    address: '',
+                    phone: '',
+                    email: '',
+                    website: '',
                     category: '',
                     socialMediaLinks: '',
                     operatingHours: '',
@@ -646,14 +702,19 @@ const BusinessUserProfile = () => {
                     registrationNumber: '',
                     taxId: ''
                   });
+
+                  // Clear any existing editing state
+                  setEditingBusiness(null);
+
+                  // Open the modal
                   setShowBusinessModal(true);
                 }}
-                disabled={!canAddBusiness()}
+                disabled={!subscriptionUtils.canAddBusiness(businesses.length, subscription)}
               >
-                {canAddBusiness() ? 'Add New Business' : 'Limit Reached'}
+                {subscriptionUtils.canAddBusiness(businesses.length, subscription) ? 'Add New Business' : 'Limit Reached'}
               </button>
             </div>
-            
+
             <div style={styles.businessGrid}>
               {businesses.length === 0 ? (
                 <div style={styles.emptyState}>
@@ -678,7 +739,7 @@ const BusinessUserProfile = () => {
                       <p style={styles.statusActive}>Active</p>
                     </div>
                     <div style={styles.businessActions}>
-                      <button 
+                      <button
                         style={styles.editBtn}
                         onClick={() => {
                           setEditingBusiness(business);
@@ -700,7 +761,7 @@ const BusinessUserProfile = () => {
                       >
                         Edit
                       </button>
-                      <button 
+                      <button
                         style={styles.deleteBtn}
                         onClick={() => handleDeleteBusiness(business._id)}
                       >
@@ -722,34 +783,42 @@ const BusinessUserProfile = () => {
                 <h3>Offers & Promotions ({offers.length})</h3>
                 <p style={styles.limitText}>{getLimitMessage('offer')}</p>
               </div>
-              <button 
-                style={canAddOffer() ? styles.addButton : styles.disabledButton}
+              <button
+                style={subscriptionUtils.canAddOffer(offers.length, subscription) ? styles.addButton : styles.disabledButton}
                 onClick={() => {
                   if (businesses.length === 0) {
                     alert('Please create a business first before adding offers!');
                     return;
                   }
-                  if (!canAddOffer()) {
-                    alert(getLimitMessage('offer') + ' Please upgrade to Premium to add more offers.');
+                  if (!subscriptionUtils.canAddOffer(offers.length, subscription)) {
+                    const limitMessage = subscriptionUtils.getLimitMessage('offer', offers.length, subscription);
+                    alert(limitMessage + ' Please upgrade to Premium to add more offers.');
                     return;
                   }
-                  setOfferForm({ 
-                    businessId: '', 
-                    title: '', 
-                    discount: '', 
-                    startDate: '', 
-                    endDate: '', 
-                    category: '', 
-                    isActive: true 
+
+                  // Reset the form for new offer
+                  setOfferForm({
+                    businessId: '',
+                    title: '',
+                    discount: '',
+                    startDate: '',
+                    endDate: '',
+                    category: '',
+                    isActive: true
                   });
+
+                  // Clear any existing editing state
+                  setEditingOffer(null);
+
+                  // Open the modal
                   setShowOfferModal(true);
                 }}
-                disabled={!canAddOffer()}
+                disabled={!subscriptionUtils.canAddOffer(offers.length, subscription)}
               >
-                {canAddOffer() ? 'Create New Offer' : 'Limit Reached'}
+                {subscriptionUtils.canAddOffer(offers.length, subscription) ? 'Create New Offer' : 'Limit Reached'}
               </button>
             </div>
-            
+
             {offers.length === 0 ? (
               <div style={styles.emptyState}>
                 <p>No offers found. Create your first offer to attract customers!</p>
@@ -761,19 +830,19 @@ const BusinessUserProfile = () => {
                   const startDate = offer.startDate ? new Date(offer.startDate) : null;
                   const endDate = offer.endDate ? new Date(offer.endDate) : null;
                   const now = new Date();
-                  
+
                   return (
                     <div key={offer._id} style={styles.offerCard}>
                       <div style={styles.offerHeader}>
                         <h4>{offer.title}</h4>
                         <span style={isCurrentlyActive ? styles.statusActive : styles.statusInactive}>
-                          {startDate && startDate > now 
-                            ? 'Scheduled' 
-                            : endDate && endDate < now 
-                            ? 'Expired' 
-                            : isCurrentlyActive 
-                            ? 'Active' 
-                            : 'Inactive'}
+                          {startDate && startDate > now
+                            ? 'Scheduled'
+                            : endDate && endDate < now
+                              ? 'Expired'
+                              : isCurrentlyActive
+                                ? 'Active'
+                                : 'Inactive'}
                         </span>
                       </div>
                       <div style={styles.offerContent}>
@@ -788,7 +857,7 @@ const BusinessUserProfile = () => {
                         )}
                       </div>
                       <div style={styles.offerActions}>
-                        <button 
+                        <button
                           style={styles.editBtn}
                           onClick={() => {
                             setEditingOffer(offer);
@@ -806,13 +875,13 @@ const BusinessUserProfile = () => {
                         >
                           Edit
                         </button>
-                        <button 
+                        <button
                           style={styles.toggleBtn}
                           onClick={() => toggleOfferStatus(offer._id, offer.isActive)}
                         >
                           {offer.isActive ? 'Deactivate' : 'Activate'}
                         </button>
-                        <button 
+                        <button
                           style={styles.deleteBtn}
                           onClick={() => handleDeleteOffer(offer._id)}
                         >
@@ -844,7 +913,7 @@ const BusinessUserProfile = () => {
                   </p>
                 )}
               </div>
-              
+
               {/* Plan Limits Information */}
               <div style={styles.planLimits}>
                 <h5>Current Plan Limits:</h5>
@@ -853,15 +922,15 @@ const BusinessUserProfile = () => {
                   <li>Offers: {offers.length}/{getSubscriptionLimits().maxOffers}</li>
                 </ul>
               </div>
-              
+
               <div style={styles.subscriptionMessage}>
                 <p>{subscriptionStatus.message}</p>
               </div>
-              
+
               <div style={styles.subscriptionActions}>
                 {subscriptionStatus.showUpgrade ? (
                   <>
-                    <button 
+                    <button
                       style={styles.upgradeButton}
                       onClick={handleSubscriptionNavigation}
                     >
@@ -880,8 +949,8 @@ const BusinessUserProfile = () => {
                   </>
                 ) : (
                   <div style={styles.premiumMessage}>
-                    <p style={styles.premiumText}>🎉 {subscriptionStatus.message}</p>
-                    <button 
+                    <p style={styles.premiumText}>{subscriptionStatus.message}</p>
+                    <button
                       style={styles.disabledButton}
                       disabled
                     >
@@ -900,7 +969,7 @@ const BusinessUserProfile = () => {
             <div style={styles.sectionHeader}>
               <h3>Push Notifications</h3>
             </div>
-            
+
             {notifications.length === 0 ? (
               <div style={styles.emptyState}>
                 <p>No notifications found.</p>
@@ -926,10 +995,10 @@ const BusinessUserProfile = () => {
       {showBusinessModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            <h3>{editingBusiness ? 'Edit Business' : 'Add New Business'}</h3>
+            <h3 style={{fontSize:'40px',textAlign:'center',color:'#0063B4'}}>{editingBusiness ? 'Edit Business' : 'Add New Business'}</h3>
             <div style={styles.modalForm}>
               {Object.entries({
-                'Business Name': 'name',
+                'Business Name*': 'name',
                 'Business Type': 'businessType',
                 'Category': 'category',
                 'Address': 'address',
@@ -938,15 +1007,14 @@ const BusinessUserProfile = () => {
                 'Website': 'website',
                 'Operating Hours': 'operatingHours',
                 'Social Media Links': 'socialMediaLinks',
-                'Registration Number': 'registrationNumber',
-                'Tax ID': 'taxId'
+                
               }).map(([label, field]) => (
                 <div key={field} style={styles.formGroup}>
                   <label>{label}</label>
                   {field === 'businessType' ? (
                     <select
                       value={businessForm[field] || ''}
-                      onChange={(e) => setBusinessForm({...businessForm, [field]: e.target.value})}
+                      onChange={(e) => setBusinessForm({ ...businessForm, [field]: e.target.value })}
                       style={styles.input}
                     >
                       <option value="">Select Business Type</option>
@@ -963,14 +1031,14 @@ const BusinessUserProfile = () => {
                     <input
                       type="text"
                       value={businessForm[field]}
-                      onChange={(e) => setBusinessForm({...businessForm, [field]: e.target.value})}
+                      onChange={(e) => setBusinessForm({ ...businessForm, [field]: e.target.value })}
                       style={styles.input}
                       placeholder="e.g., Mon-Fri 9AM-6PM, Sat 10AM-4PM"
                     />
                   ) : field === 'socialMediaLinks' ? (
                     <textarea
                       value={businessForm[field]}
-                      onChange={(e) => setBusinessForm({...businessForm, [field]: e.target.value})}
+                      onChange={(e) => setBusinessForm({ ...businessForm, [field]: e.target.value })}
                       style={styles.textarea}
                       placeholder="Facebook, Instagram, LinkedIn URLs (one per line)"
                       rows="3"
@@ -979,7 +1047,7 @@ const BusinessUserProfile = () => {
                     <input
                       type={field === 'email' ? 'email' : field === 'website' ? 'url' : 'text'}
                       value={businessForm[field]}
-                      onChange={(e) => setBusinessForm({...businessForm, [field]: e.target.value})}
+                      onChange={(e) => setBusinessForm({ ...businessForm, [field]: e.target.value })}
                       style={styles.input}
                       placeholder={`Enter ${label.toLowerCase()}`}
                       required={field === 'name'}
@@ -992,8 +1060,8 @@ const BusinessUserProfile = () => {
               <button style={styles.saveButton} onClick={handleBusinessSubmit}>
                 {editingBusiness ? 'Update' : 'Create'}
               </button>
-              <button 
-                style={styles.cancelButton} 
+              <button
+                style={styles.cancelButton}
                 onClick={() => {
                   setShowBusinessModal(false);
                   setEditingBusiness(null);
@@ -1010,13 +1078,13 @@ const BusinessUserProfile = () => {
       {showOfferModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            <h3>{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
+            <h3 style={{fontSize:'40px',textAlign:'center',color:'#0063B4'}}>{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
             <div style={styles.modalForm}>
               <div style={styles.formGroup}>
                 <label>Select Business</label>
                 <select
                   value={offerForm.businessId}
-                  onChange={(e) => setOfferForm({...offerForm, businessId: e.target.value})}
+                  onChange={(e) => setOfferForm({ ...offerForm, businessId: e.target.value })}
                   style={styles.input}
                   required
                 >
@@ -1028,13 +1096,13 @@ const BusinessUserProfile = () => {
                   ))}
                 </select>
               </div>
-              
+
               <div style={styles.formGroup}>
                 <label>Offer Title</label>
                 <input
                   type="text"
                   value={offerForm.title}
-                  onChange={(e) => setOfferForm({...offerForm, title: e.target.value})}
+                  onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })}
                   style={styles.input}
                   placeholder="Enter offer title"
                   required
@@ -1046,7 +1114,7 @@ const BusinessUserProfile = () => {
                 <input
                   type="text"
                   value={offerForm.discount}
-                  onChange={(e) => setOfferForm({...offerForm, discount: e.target.value})}
+                  onChange={(e) => setOfferForm({ ...offerForm, discount: e.target.value })}
                   style={styles.input}
                   placeholder="e.g., 20% or $10"
                   required
@@ -1057,7 +1125,7 @@ const BusinessUserProfile = () => {
                 <label>Category</label>
                 <select
                   value={offerForm.category}
-                  onChange={(e) => setOfferForm({...offerForm, category: e.target.value})}
+                  onChange={(e) => setOfferForm({ ...offerForm, category: e.target.value })}
                   style={styles.input}
                 >
                   <option value="">Select category</option>
@@ -1071,38 +1139,38 @@ const BusinessUserProfile = () => {
                   <option value="Other">Other</option>
                 </select>
               </div>
-              
+
               <div style={styles.dateRow}>
                 <div style={styles.formGroup}>
                   <label>Start Date</label>
                   <input
                     type="date"
                     value={offerForm.startDate}
-                    onChange={(e) => setOfferForm({...offerForm, startDate: e.target.value})}
+                    onChange={(e) => setOfferForm({ ...offerForm, startDate: e.target.value })}
                     style={styles.input}
                     min={new Date().toISOString().split('T')[0]}
                   />
                 </div>
-                
+
                 <div style={styles.formGroup}>
                   <label>End Date</label>
                   <input
                     type="date"
                     value={offerForm.endDate}
-                    onChange={(e) => setOfferForm({...offerForm, endDate: e.target.value})}
+                    onChange={(e) => setOfferForm({ ...offerForm, endDate: e.target.value })}
                     style={styles.input}
                     min={offerForm.startDate || new Date().toISOString().split('T')[0]}
                   />
                 </div>
               </div>
-              
+
               <div style={styles.formGroup}>
                 <label>
                   <input
                     type="checkbox"
                     checked={offerForm.isActive}
-                    onChange={(e) => setOfferForm({...offerForm, isActive: e.target.checked})}
-                    style={{marginRight: '8px'}}
+                    onChange={(e) => setOfferForm({ ...offerForm, isActive: e.target.checked })}
+                    style={{ marginRight: '8px' }}
                   />
                   Active
                 </label>
@@ -1112,8 +1180,8 @@ const BusinessUserProfile = () => {
               <button style={styles.saveButton} onClick={handleOfferSubmit}>
                 {editingOffer ? 'Update' : 'Create'}
               </button>
-              <button 
-                style={styles.cancelButton} 
+              <button
+                style={styles.cancelButton}
                 onClick={() => {
                   setShowOfferModal(false);
                   setEditingOffer(null);
@@ -1143,6 +1211,14 @@ const BusinessUserProfile = () => {
           </div>
         </div>
       )}
+
+      {/* CSS Styles */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
@@ -1669,49 +1745,7 @@ const styles = {
     borderTop: '1px solid #e9ecef',
     justifyContent: 'flex-end',
     flexWrap: 'wrap'
-  },
-  // Responsive styles
-  '@media (max-width: 768px)': {
-    container: {
-      padding: 0
-    },
-    header: {
-      flexDirection: 'column',
-      alignItems: 'stretch',
-      gap: '1rem',
-      padding: '1rem'
-    },
-    profileSection: {
-      justifyContent: 'center'
-    },
-    headerActions: {
-      justifyContent: 'center'
-    },
-    content: {
-      padding: '1rem'
-    },
-    profileGrid: {
-      gridTemplateColumns: '1fr'
-    },
-    businessGrid: {
-      gridTemplateColumns: '1fr'
-    },
-    offersGrid: {
-      gridTemplateColumns: '1fr'
-    },
-    dateRow: {
-      gridTemplateColumns: '1fr'
-    },
-    sectionHeader: {
-      flexDirection: 'column',
-      alignItems: 'stretch',
-      textAlign: 'center'
-    },
-    modalContent: {
-      margin: '1rem',
-      maxWidth: 'calc(100vw - 2rem)'
-    }
   }
-}
+};
 
 export default BusinessUserProfile;

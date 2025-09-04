@@ -280,14 +280,14 @@ function PaymentSuccess() {
         <div style={{ marginTop: '30px' }}>
           {verificationStatus === 'success' ? (
             <>
-              <button
+              {/* <button
                 onClick={() => navigate('/dashboard')}
                 style={styles.button}
                 onMouseOver={(e) => e.target.style.backgroundColor = '#2563eb'}
                 onMouseOut={(e) => e.target.style.backgroundColor = '#3b82f6'}
               >
                 Go to Dashboard
-              </button>
+              </button> */}
               <button
                 onClick={() => navigate('/profile')}
                 style={styles.secondaryButton}

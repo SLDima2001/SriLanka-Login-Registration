@@ -141,6 +141,21 @@ function SubscriptionPage() {
     return "";
   };
 
+  const getAvailablePlans = () => {
+    // If user is already on free plan, only show premium plan
+    if (isFreeUser() && hasActiveSubscription) {
+      return plans.filter(plan => plan.id !== 1); // Remove free plan
+    }
+
+    // For premium users with expired subscription, show only premium plan
+    if (hasExpiredPremium()) {
+      return plans.filter(plan => plan.id !== 1); // Remove free plan
+    }
+
+    // For new users (non-activated), show all plans
+    return plans;
+  };
+
   // Pre-fill user data if available
   useEffect(() => {
     if (user) {
@@ -173,7 +188,7 @@ function SubscriptionPage() {
     // Check multiple times to ensure loading
     const timer1 = setTimeout(checkPayHereSDK, 1000);
     const timer2 = setTimeout(checkPayHereSDK, 3000);
-    
+
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
@@ -220,7 +235,7 @@ function SubscriptionPage() {
   const initiatePayHereSDKPayment = (paymentData) => {
     try {
       console.log('Initializing PayHere SDK payment...');
-      
+
       // Check if PayHere SDK is loaded
       if (typeof window.payhere === 'undefined') {
         throw new Error('PayHere SDK not loaded. Please refresh the page and try again.');
@@ -241,7 +256,7 @@ function SubscriptionPage() {
         console.log("Payment completed successfully. OrderID:", orderId);
         setPaymentStatus('success');
         setIsProcessing(false);
-        
+
         // Create subscription record with proper error handling
         createSubscriptionRecord({
           userId: user?.userId || null,
@@ -296,7 +311,7 @@ function SubscriptionPage() {
   const createSubscriptionRecord = async (subscriptionData) => {
     try {
       console.log('Creating subscription record...');
-      
+
       const response = await fetch('http://localhost:5555/create-subscription-record', {
         method: 'POST',
         headers: {
@@ -314,7 +329,7 @@ function SubscriptionPage() {
       }
 
       const result = await response.json();
-      
+
       if (result.success) {
         console.log('Subscription record created:', result.subscriptionId);
         return result;
@@ -814,7 +829,7 @@ function SubscriptionPage() {
       margin: 0,
       fontSize: '2.5em',
       fontWeight: 'bold',
-      
+
     },
     subtitle: {
       margin: '10px 0 0 0',
@@ -1026,7 +1041,7 @@ function SubscriptionPage() {
 
       {/* Plans Selection */}
       <div style={styles.plansContainer}>
-        {plans.map((plan) => {
+        {getAvailablePlans().map((plan) => {
           const currentPrice = plan.monthlyPrice;
           const isSelected = formData.selectedPlan === plan.id.toString();
           const isDisabled = isPlanDisabled(plan.id);
@@ -1083,6 +1098,7 @@ function SubscriptionPage() {
           );
         })}
       </div>
+
 
       <div style={styles.mainContent}>
         <div style={styles.formContainer}>
@@ -1173,7 +1189,7 @@ function SubscriptionPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
               <span>Selected Plan:</span>
               <span style={{ fontWeight: 'bold' }}>
-                {plans.find(p => p.id === parseInt(formData.selectedPlan))?.name || 'No plan selected'}
+                {getAvailablePlans().find(p => p.id === parseInt(formData.selectedPlan))?.name || 'No plan selected'}
               </span>
             </div>
 

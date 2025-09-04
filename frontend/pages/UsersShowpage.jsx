@@ -57,6 +57,26 @@ const UserShowpage = () => {
     });
     console.log('======================');
   };
+
+  const getSubscriptionBadgeStyle = (subscription) => {
+    if (!subscription || subscription.planName === 'No Subscription') {
+      return { ...additionalStyles.subscriptionBadge, ...additionalStyles.noPlanBadge };
+    }
+
+    if (subscription.isExpired) {
+      return { ...additionalStyles.subscriptionBadge, ...additionalStyles.expiredBadge };
+    }
+
+    if (subscription.planName === 'Premium Plan') {
+      return { ...additionalStyles.subscriptionBadge, ...additionalStyles.premiumBadge };
+    }
+
+    if (subscription.planName === 'Free Plan') {
+      return { ...additionalStyles.subscriptionBadge, ...additionalStyles.freeBadge };
+    }
+
+    return { ...additionalStyles.subscriptionBadge, ...additionalStyles.noPlanBadge };
+  };
   const fetchAdmins = async () => {
     try {
       const response = await axios.get("http://localhost:5555/api/admin/admins"); // Adjust endpoint as needed
@@ -663,7 +683,7 @@ const UserShowpage = () => {
       fontWeight: "500",
       cursor: "pointer",
       transition: "all 0.2s ease",
-      
+
     },
     adminRegisterContainer: {
       marginBottom: "32px",
@@ -1002,8 +1022,56 @@ const UserShowpage = () => {
       fontSize: "12px",
       color: "#64748b",
     },
-
+    
   };
+  const additionalStyles = {
+  subscriptionBadge: {
+    padding: '4px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    display: 'inline-block',
+    minWidth: '70px'
+  },
+  premiumBadge: {
+    backgroundColor: '#dcfce7',
+    color: '#166534',
+    border: '1px solid #bbf7d0'
+  },
+  freeBadge: {
+    backgroundColor: '#dbeafe',
+    color: '#1e40af',
+    border: '1px solid #bfdbfe'
+  },
+  noPlanBadge: {
+    backgroundColor: '#f3f4f6',
+    color: '#6b7280',
+    border: '1px solid #e5e7eb'
+  },
+  expiredBadge: {
+    backgroundColor: '#fee2e2',
+    color: '#dc2626',
+    border: '1px solid #fecaca'
+  },
+  daysRemaining: {
+    fontSize: '10px',
+    color: '#059669',
+    fontWeight: '500',
+    marginTop: '2px'
+  },
+  expiredText: {
+    fontSize: '10px',
+    color: '#dc2626',
+    fontWeight: '500',
+    marginTop: '2px'
+  },
+  activeDateInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px'
+  }
+};
 
   // CSS animations
   const cssAnimations = `
@@ -1413,6 +1481,8 @@ const UserShowpage = () => {
                     <th style={styles.th}>Contact</th>
                     <th style={styles.th}>Business</th>
                     <th style={styles.th}>Type</th>
+                    <th style={styles.th}>Subscription</th>
+                    <th style={styles.th}>Active Date</th>
                     <th style={styles.th}>Created Date</th>
                     <th style={styles.th}>Status</th>
                     <th style={{ ...styles.th, ...styles.thLast, textAlign: "center" }}>Actions</th>
@@ -1532,7 +1602,74 @@ const UserShowpage = () => {
                         )}
                       </td>
 
+                      {/* NEW SUBSCRIPTION COLUMN */}
+                      <td style={styles.td}>
+                        <div style={styles.userInfo}>
+                          <div style={styles.userName}>
+                            <span style={getSubscriptionBadgeStyle(user.subscription)}>
+                              {user.subscription?.planName || 'No Plan'}
+                            </span>
+                          </div>
+                          <div style={styles.userDetail}>
+                            {user.subscription?.amount > 0 && (
+                              <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                                {user.subscription.currency} {user.subscription.amount}/{user.subscription.billingCycle}
+                              </span>
+                            )}
+                            {user.subscription?.amount === 0 && user.subscription?.planName === 'Free Plan' && (
+                              <span style={{ fontSize: '10px', color: '#059669' }}>
+                                Free Forever
+                              </span>
+                            )}
+                          </div>
+                          {user.subscription?.isExpired && (
+                            <div style={{ ...styles.userDetail, color: '#dc2626', fontSize: '10px', fontWeight: '500' }}>
+                              EXPIRED
+                            </div>
+                          )}
+                          {user.subscription?.daysRemaining !== null && user.subscription?.daysRemaining > 0 && (
+                            <div style={{ ...styles.userDetail, color: '#059669', fontSize: '10px', fontWeight: '500' }}>
+                              {user.subscription.daysRemaining} days left
+                            </div>
+                          )}
+                        </div>
+                      </td>
 
+                      {/* NEW ACTIVE DATE COLUMN */}
+                      <td style={styles.td}>
+                        <div style={styles.userInfo}>
+                          <div style={styles.userName}>
+                            {user.subscription?.startDate ?
+                              formatDate(user.subscription.startDate) :
+                              "-"
+                            }
+                          </div>
+                          <div style={styles.userDetail}>
+                            {user.subscription?.startDate ?
+                              formatTime(user.subscription.startDate) :
+                              "Not activated"
+                            }
+                          </div>
+                          {user.subscription?.endDate && (
+                            <div style={{
+                              ...styles.userDetail,
+                              fontSize: '10px',
+                              color: user.subscription?.isExpired ? '#dc2626' : '#6b7280'
+                            }}>
+                              Expires: {formatDate(user.subscription.endDate)}
+                            </div>
+                          )}
+                          {user.subscription?.planName === 'Free Plan' && (
+                            <div style={{
+                              ...styles.userDetail,
+                              fontSize: '10px',
+                              color: '#059669'
+                            }}>
+                              Never expires
+                            </div>
+                          )}
+                        </div>
+                      </td>
 
                       <td style={styles.td}>
                         <div style={styles.userInfo}>
@@ -1542,7 +1679,7 @@ const UserShowpage = () => {
                           <div style={styles.userDetail}>
                             {user.createdAt ? formatTime(user.createdAt) : "-"}
                           </div>
-                          {/* Temporary debug info - remove after fixing */}
+                          {/* Remove or keep debug info as needed */}
                           <div style={{ ...styles.userDetail, fontSize: '10px', color: '#ff0000', fontFamily: 'monospace' }}>
                             Debug: {user.createdAt ? `"${user.createdAt}"` : 'NULL/UNDEFINED'}
                           </div>
@@ -1594,7 +1731,6 @@ const UserShowpage = () => {
                             </>
                           ) : (
                             <>
-
                               <button
                                 style={{ ...styles.actionButton, ...styles.approveButton }}
                                 onClick={() => updateStatus(user._id, "approve")}
@@ -1602,7 +1738,6 @@ const UserShowpage = () => {
                                 onMouseEnter={(e) => e.target.style.backgroundColor = "#047857"}
                                 onMouseLeave={(e) => e.target.style.backgroundColor = "#059669"}
                               >
-
                                 Accept
                               </button>
                               <button
@@ -1612,7 +1747,6 @@ const UserShowpage = () => {
                                 onMouseEnter={(e) => e.target.style.backgroundColor = "#b45309"}
                                 onMouseLeave={(e) => e.target.style.backgroundColor = "#d97706"}
                               >
-
                                 Decline
                               </button>
                               <button
