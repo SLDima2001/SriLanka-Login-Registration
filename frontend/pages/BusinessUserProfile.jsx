@@ -16,6 +16,7 @@ const BusinessUserProfile = () => {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showNotificationBanner, setShowNotificationBanner] = useState(true);
 
   // Modal states
   const [showBusinessModal, setShowBusinessModal] = useState(false);
@@ -60,11 +61,149 @@ const BusinessUserProfile = () => {
     userType: ''
   });
 
+  // Enhanced offer status helper
+  const getOfferStatusDisplay = (offer) => {
+    const now = new Date();
+    const startDate = offer.startDate ? new Date(offer.startDate) : null;
+    const endDate = offer.endDate ? new Date(offer.endDate) : null;
+
+    // Admin status takes priority
+    switch (offer.adminStatus) {
+      case 'pending':
+        return {
+          status: 'Pending Review',
+          color: '#ffc107',
+          backgroundColor: '#fff3cd',
+          borderColor: '#ffeaa7',
+          icon: '⏳',
+          message: 'Your offer is waiting for admin approval',
+          canEdit: true,
+          canToggle: false
+        };
+      
+      case 'declined':
+        return {
+          status: 'Declined',
+          color: '#dc3545',
+          backgroundColor: '#f8d7da',
+          borderColor: '#f5c6cb',
+          icon: '❌',
+          message: offer.adminComments ? `Declined: ${offer.adminComments}` : 'Offer was declined by admin',
+          canEdit: true,
+          canToggle: false
+        };
+      
+      case 'approved':
+        // For approved offers, check time-based status
+        if (startDate && startDate > now) {
+          return {
+            status: 'Approved - Scheduled',
+            color: '#17a2b8',
+            backgroundColor: '#d1ecf1',
+            borderColor: '#bee5eb',
+            icon: '📅',
+            message: `Approved! Will start on ${startDate.toLocaleDateString()}`,
+            canEdit: false,
+            canToggle: true
+          };
+        } else if (endDate && endDate < now) {
+          return {
+            status: 'Expired',
+            color: '#6c757d',
+            backgroundColor: '#e2e3e5',
+            borderColor: '#d6d8db',
+            icon: '⏰',
+            message: 'Offer has expired',
+            canEdit: false,
+            canToggle: false
+          };
+        } else if (!offer.isActive) {
+          return {
+            status: 'Approved - Inactive',
+            color: '#fd7e14',
+            backgroundColor: '#fee2d5',
+            borderColor: '#fdd5b5',
+            icon: '⏸️',
+            message: 'Approved but manually deactivated',
+            canEdit: false,
+            canToggle: true
+          };
+        } else {
+          return {
+            status: 'Live',
+            color: '#28a745',
+            backgroundColor: '#d4edda',
+            borderColor: '#c3e6cb',
+            icon: '✅',
+            message: 'Your offer is live and visible to customers!',
+            canEdit: false,
+            canToggle: true
+          };
+        }
+      
+      default:
+        return {
+          status: 'Unknown',
+          color: '#6c757d',
+          backgroundColor: '#e2e3e5',
+          borderColor: '#d6d8db',
+          icon: '❓',
+          message: 'Status unknown',
+          canEdit: false,
+          canToggle: false
+        };
+    }
+  };
+
+  // Get offers summary
+  const getOffersSummary = () => {
+    const pending = offers.filter(o => o.adminStatus === 'pending').length;
+    const approved = offers.filter(o => o.adminStatus === 'approved').length;
+    const declined = offers.filter(o => o.adminStatus === 'declined').length;
+    const live = offers.filter(o => {
+      const statusInfo = getOfferStatusDisplay(o);
+      return statusInfo.status === 'Live';
+    }).length;
+
+    return { pending, approved, declined, live, total: offers.length };
+  };
+
+  // Toast notification system
+  const showToastNotification = (message, type = 'info') => {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 16px 20px;
+      background: ${type === 'success' ? '#d4edda' : type === 'error' ? '#f8d7da' : '#d1ecf1'};
+      color: ${type === 'success' ? '#155724' : type === 'error' ? '#721c24' : '#0c5460'};
+      border: 1px solid ${type === 'success' ? '#c3e6cb' : type === 'error' ? '#f5c6cb' : '#bee5eb'};
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 9999;
+      max-width: 400px;
+      font-family: inherit;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    `;
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.parentNode.removeChild(toast), 300);
+      }
+    }, 5000);
+  };
+
   // Helper function to get subscription limits
   const getSubscriptionLimits = () => {
     console.log('Current subscription:', subscription);
 
-    // Check if user has an active premium subscription
     if (subscription.planName &&
       subscription.planName.toLowerCase() === 'premium' &&
       subscription.status === 'active' &&
@@ -75,27 +214,18 @@ const BusinessUserProfile = () => {
       };
     }
 
-    // Default to free plan limits (including when subscription is null/undefined)
     return subscriptionUtils.getSubscriptionLimits(subscription);
   };
 
-  // Helper function to check if user can add more businesses
   const canAddBusiness = () => {
-    const limits = getSubscriptionLimits();
     return subscriptionUtils.canAddBusiness(businesses.length, subscription);
   };
 
-  // Helper function to check if user can add more offers
   const canAddOffer = () => {
-    const limits = getSubscriptionLimits();
     return subscriptionUtils.canAddOffer(offers.length, subscription);
   };
 
-  // Helper function to get limit message
   const getLimitMessage = (type) => {
-    const limits = getSubscriptionLimits();
-    const planName = subscription.planName || 'Free';
-
     if (type === 'business') {
       return subscriptionUtils.getLimitMessage('business', businesses.length, subscription);
     } else if (type === 'offer') {
@@ -103,56 +233,24 @@ const BusinessUserProfile = () => {
     }
   };
 
-  // Check if user is currently a free user
   const isFreeUser = () => {
     return subscriptionUtils.isFreeUser(subscription);
   };
-  // Check if user is currently a premium user
+
   const isPremiumUser = () => {
     return subscriptionUtils.isPremiumUser(subscription);
   };
 
-  // Check if subscription is expired or about to expire
   const isSubscriptionExpired = () => {
     if (!subscription || !subscription.endDate) return false;
     return new Date() > new Date(subscription.endDate);
   };
 
-
-  // Check if user has an active subscription (not expired)
   const hasActiveSubscription = () => {
     if (!subscription) return false;
-    if (subscription.planId === '1') return true; // Free plan is always active
-    if (!subscription.endDate) return subscription.status === 'active'; // Lifetime subscription
+    if (subscription.planId === '1') return true;
+    if (!subscription.endDate) return subscription.status === 'active';
     return subscription.status === 'active' && !isSubscriptionExpired();
-  };
-
-  // Helper function to check if plan should be disabled
-  const isPlanDisabled = (planId) => {
-    // If user has active premium subscription, they shouldn't access this page
-    if (isPremiumUser() && hasActiveSubscription()) {
-      return true;
-    }
-
-    // If user already has free plan, disable free plan selection
-    if (planId === 1 && isFreeUser() && hasActiveSubscription) {
-      return true;
-    }
-
-    return false;
-  };
-
-  // Helper function to get plan disabled message
-  const getPlanDisabledMessage = (planId) => {
-    if (isPremiumUser() && hasActiveSubscription()) {
-      return "You already have the Premium plan - the best package available!";
-    }
-
-    if (planId === 1 && isFreeUser() && hasActiveSubscription) {
-      return "You already have the Free plan activated. Upgrade to Premium for more features!";
-    }
-
-    return "";
   };
 
   useEffect(() => {
@@ -166,7 +264,6 @@ const BusinessUserProfile = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
 
-      // Fetch user profile
       const profileResponse = await axios.post(
         'http://localhost:5555/api/user/profile-by-email',
         { email: user.email },
@@ -178,7 +275,6 @@ const BusinessUserProfile = () => {
         setUserDetails(userData);
         setProfileForm(userData);
 
-        // Fetch user's businesses and offers
         await fetchBusinesses(userData.userId);
         await fetchOffers(userData.userId);
         await fetchSubscription(userData.userId);
@@ -215,7 +311,6 @@ const BusinessUserProfile = () => {
     }
   };
 
-  // FIXED: This is the key function that was causing the issue
   const fetchSubscription = async (userId) => {
     try {
       console.log('Fetching subscription for userId:', userId);
@@ -238,7 +333,6 @@ const BusinessUserProfile = () => {
           paymentMethod: subscriptionData.paymentMethod
         });
       } else {
-        // Set default free plan subscription
         setSubscription({
           planId: '1',
           planName: 'Free',
@@ -250,7 +344,6 @@ const BusinessUserProfile = () => {
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
-      // Set default free plan subscription on error
       setSubscription({
         planId: '1',
         planName: 'Free',
@@ -284,11 +377,11 @@ const BusinessUserProfile = () => {
       if (response.data.success) {
         setUserDetails(response.data.user);
         setEditMode(false);
-        alert('Profile updated successfully!');
+        showToastNotification('Profile updated successfully!', 'success');
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Failed to update profile');
+      showToastNotification('Failed to update profile', 'error');
     }
   };
 
@@ -299,13 +392,13 @@ const BusinessUserProfile = () => {
       );
 
       if (response.data.success) {
-        alert('Account deleted successfully');
+        showToastNotification('Account deleted successfully', 'success');
         logout();
         navigate('/');
       }
     } catch (error) {
       console.error('Error deleting account:', error);
-      alert('Failed to delete account');
+      showToastNotification('Failed to delete account', 'error');
     }
   };
 
@@ -318,13 +411,12 @@ const BusinessUserProfile = () => {
         );
         if (response.data.success) {
           await fetchBusinesses(userDetails.userId);
-          alert('Business updated successfully!');
+          showToastNotification('Business updated successfully!', 'success');
         }
       } else {
-        // Check limit before creating new business using utility
         if (!subscriptionUtils.canAddBusiness(businesses.length, subscription)) {
           const limitMessage = subscriptionUtils.getLimitMessage('business', businesses.length, subscription);
-          alert(limitMessage + ' Please upgrade to Premium to add more businesses.');
+          showToastNotification(limitMessage + ' Please upgrade to Premium to add more businesses.', 'error');
           return;
         }
 
@@ -334,7 +426,7 @@ const BusinessUserProfile = () => {
         );
         if (response.data.success) {
           await fetchBusinesses(userDetails.userId);
-          alert('Business created successfully!');
+          showToastNotification('Business created successfully!', 'success');
         }
       }
       setShowBusinessModal(false);
@@ -346,37 +438,51 @@ const BusinessUserProfile = () => {
       });
     } catch (error) {
       console.error('Error saving business:', error);
-      alert(error.response?.data?.message || 'Failed to save business');
+      showToastNotification(error.response?.data?.message || 'Failed to save business', 'error');
     }
   };
 
   const handleOfferSubmit = async () => {
     try {
-      // Validate dates
       if (offerForm.startDate && offerForm.endDate) {
         const startDate = new Date(offerForm.startDate);
         const endDate = new Date(offerForm.endDate);
 
         if (startDate >= endDate) {
-          alert('End date must be after start date!');
+          showToastNotification('End date must be after start date!', 'error');
           return;
         }
       }
 
       if (editingOffer) {
+        // EDITING EXISTING OFFER
         const response = await axios.put(
           `http://localhost:5555/api/offers/${editingOffer._id}`,
-          { ...offerForm, userId: userDetails.userId }
+          { 
+            ...offerForm, 
+            userId: userDetails.userId,
+            // Add flag to indicate this is an edit that needs re-approval
+            requiresReapproval: true
+          }
         );
+        
         if (response.data.success) {
           await fetchOffers(userDetails.userId);
-          alert('Offer updated successfully!');
+          
+          // Show different messages based on status reset
+          if (response.data.statusReset) {
+            showToastNotification('Offer updated successfully! It will need admin re-approval before going live again.', 'info');
+          } else if (editingOffer.adminStatus === 'declined') {
+            showToastNotification('Offer updated successfully! It has been resubmitted for admin review.', 'info');
+          } else {
+            showToastNotification('Offer updated successfully!', 'success');
+          }
         }
       } else {
-        // Check limit before creating new offer using utility
+        // CREATING NEW OFFER
         if (!subscriptionUtils.canAddOffer(offers.length, subscription)) {
           const limitMessage = subscriptionUtils.getLimitMessage('offer', offers.length, subscription);
-          alert(limitMessage + ' Please upgrade to Premium to add more offers.');
+          showToastNotification(limitMessage + ' Please upgrade to Premium to add more offers.', 'error');
           return;
         }
 
@@ -386,11 +492,16 @@ const BusinessUserProfile = () => {
         );
 
         if (response.data.success) {
-          await sendOfferNotification(offerForm);
+          if (response.data.pendingApproval) {
+            showToastNotification('Offer submitted successfully! It will be visible once approved by admin.', 'info');
+          } else {
+            await sendOfferNotification(offerForm);
+            showToastNotification('Offer created successfully! Email notification sent.', 'success');
+          }
           await fetchOffers(userDetails.userId);
-          alert('Offer created successfully! Email notification sent.');
         }
       }
+      
       setShowOfferModal(false);
       setEditingOffer(null);
       setOfferForm({
@@ -399,17 +510,16 @@ const BusinessUserProfile = () => {
       });
     } catch (error) {
       console.error('Error saving offer:', error);
-      alert(error.response?.data?.message || 'Failed to save offer');
+      showToastNotification(error.response?.data?.message || 'Failed to save offer', 'error');
     }
   };
-  // Send email notification when offer starts
+
   const sendOfferNotification = async (offerData) => {
     try {
       const business = businesses.find(b => b._id === offerData.businessId);
       const startDate = new Date(offerData.startDate);
       const today = new Date();
 
-      // If start date is today or in the past, send notification immediately
       if (startDate <= today) {
         await axios.post('http://localhost:5555/api/send-offer-notification', {
           userEmail: userDetails.email,
@@ -422,7 +532,6 @@ const BusinessUserProfile = () => {
         });
         console.log('Offer notification sent immediately');
       } else {
-        // Schedule notification for start date (you might want to implement this with a job queue)
         console.log('Offer notification scheduled for:', startDate);
       }
     } catch (error) {
@@ -436,11 +545,11 @@ const BusinessUserProfile = () => {
         const response = await axios.delete(`http://localhost:5555/api/businesses/${businessId}`);
         if (response.data.success) {
           await fetchBusinesses(userDetails.userId);
-          alert('Business deleted successfully!');
+          showToastNotification('Business deleted successfully!', 'success');
         }
       } catch (error) {
         console.error('Error deleting business:', error);
-        alert('Failed to delete business');
+        showToastNotification('Failed to delete business', 'error');
       }
     }
   };
@@ -451,11 +560,11 @@ const BusinessUserProfile = () => {
         const response = await axios.delete(`http://localhost:5555/api/offers/${offerId}`);
         if (response.data.success) {
           await fetchOffers(userDetails.userId);
-          alert('Offer deleted successfully!');
+          showToastNotification('Offer deleted successfully!', 'success');
         }
       } catch (error) {
         console.error('Error deleting offer:', error);
-        alert('Failed to delete offer');
+        showToastNotification('Failed to delete offer', 'error');
       }
     }
   };
@@ -468,39 +577,33 @@ const BusinessUserProfile = () => {
       );
       if (response.data.success) {
         await fetchOffers(userDetails.userId);
-        alert('Offer status updated successfully!');
+        showToastNotification('Offer status updated successfully!', 'success');
       }
     } catch (error) {
       console.error('Error toggling offer status:', error);
-      alert('Failed to update offer status');
+      showToastNotification('Failed to update offer status', 'error');
     }
   };
 
-  // Handle subscription page navigation
-const handleSubscriptionNavigation = () => {
-  // Premium users cannot access subscription page (they have the best plan)
-  if (isPremiumUser() && hasActiveSubscription()) {
-    alert('You already have the Premium plan - the best package available!');
-    return;
-  }
+  const handleSubscriptionNavigation = () => {
+    if (isPremiumUser() && hasActiveSubscription()) {
+      showToastNotification('You already have the Premium plan - the best package available!', 'info');
+      return;
+    }
 
-  // If premium subscription expired, allow access to subscription page
-  if (isPremiumUser() && !hasActiveSubscription()) {
-    navigate('/SubscriptionPage'); // Fixed: changed from '/subscription' to '/SubscriptionPage'
-    return;
-  }
+    if (isPremiumUser() && !hasActiveSubscription()) {
+      navigate('/SubscriptionPage');
+      return;
+    }
 
-  // Free users can access subscription page
-  if (isFreeUser()) {
-    navigate('/SubscriptionPage'); // Fixed: changed from '/subscription' to '/SubscriptionPage'
-    return;
-  }
+    if (isFreeUser()) {
+      navigate('/SubscriptionPage');
+      return;
+    }
 
-  // Default navigation for other cases
-  navigate('/SubscriptionPage'); // Fixed: changed from '/subscription' to '/SubscriptionPage'
-};
+    navigate('/SubscriptionPage');
+  };
 
-  // Get subscription status display
   const getSubscriptionStatusDisplay = () => {
     if (isPremiumUser() && hasActiveSubscription()) {
       return {
@@ -537,16 +640,51 @@ const handleSubscriptionNavigation = () => {
     };
   };
 
-  // Check if offer is currently active based on dates
   const isOfferCurrentlyActive = (offer) => {
     const now = new Date();
     const startDate = offer.startDate ? new Date(offer.startDate) : null;
     const endDate = offer.endDate ? new Date(offer.endDate) : null;
 
-    if (startDate && startDate > now) return false; // Not started yet
-    if (endDate && endDate < now) return false; // Already ended
+    if (startDate && startDate > now) return false;
+    if (endDate && endDate < now) return false;
 
-    return offer.isActive; // Return the manual active status
+    return offer.isActive;
+  };
+
+  // Notification Banner Component
+  const OfferNotificationBanner = () => {
+    const summary = getOffersSummary();
+
+    if (!showNotificationBanner || (summary.pending === 0 && summary.declined === 0)) {
+      return null;
+    }
+
+    return (
+      <div style={styles.notificationBanner}>
+        <div style={styles.bannerContent}>
+          <span style={styles.bannerIcon}>📢</span>
+          <div style={styles.bannerText}>
+            {summary.pending > 0 && (
+              <span>
+                {summary.pending} offer{summary.pending > 1 ? 's' : ''} pending admin review
+                {summary.declined > 0 && ', '}
+              </span>
+            )}
+            {summary.declined > 0 && (
+              <span style={{color: '#dc3545'}}>
+                {summary.declined} offer{summary.declined > 1 ? 's' : ''} declined
+              </span>
+            )}
+          </div>
+        </div>
+        <button 
+          style={styles.bannerClose}
+          onClick={() => setShowNotificationBanner(false)}
+        >
+          ×
+        </button>
+      </div>
+    );
   };
 
   if (loading) {
@@ -559,6 +697,7 @@ const handleSubscriptionNavigation = () => {
   }
 
   const subscriptionStatus = getSubscriptionStatusDisplay();
+  const summary = getOffersSummary();
 
   return (
     <div style={styles.container}>
@@ -684,11 +823,10 @@ const handleSubscriptionNavigation = () => {
                 onClick={() => {
                   if (!subscriptionUtils.canAddBusiness(businesses.length, subscription)) {
                     const limitMessage = subscriptionUtils.getLimitMessage('business', businesses.length, subscription);
-                    alert(limitMessage + ' Please upgrade to Premium to add more businesses.');
+                    showToastNotification(limitMessage + ' Please upgrade to Premium to add more businesses.', 'error');
                     return;
                   }
 
-                  // Reset the form for new business
                   setBusinessForm({
                     name: '',
                     address: '',
@@ -703,10 +841,7 @@ const handleSubscriptionNavigation = () => {
                     taxId: ''
                   });
 
-                  // Clear any existing editing state
                   setEditingBusiness(null);
-
-                  // Open the modal
                   setShowBusinessModal(true);
                 }}
                 disabled={!subscriptionUtils.canAddBusiness(businesses.length, subscription)}
@@ -780,23 +915,45 @@ const handleSubscriptionNavigation = () => {
           <div style={styles.section}>
             <div style={styles.sectionHeader}>
               <div>
-                <h3>Offers & Promotions ({offers.length})</h3>
+                <div style={styles.headerTitleRow}>
+                  <h3>Offers & Promotions ({summary.total})</h3>
+                  <div style={styles.offersSummaryStats}>
+                    {summary.live > 0 && (
+                      <span style={styles.summaryBadge.live}>
+                        {summary.live} Live
+                      </span>
+                    )}
+                    {summary.pending > 0 && (
+                      <span style={styles.summaryBadge.pending}>
+                        {summary.pending} Pending
+                      </span>
+                    )}
+                    {summary.declined > 0 && (
+                      <span style={styles.summaryBadge.declined}>
+                        {summary.declined} Declined
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <p style={styles.limitText}>{getLimitMessage('offer')}</p>
+                
+                {/* Show notification banner */}
+                <OfferNotificationBanner />
               </div>
+              
               <button
                 style={subscriptionUtils.canAddOffer(offers.length, subscription) ? styles.addButton : styles.disabledButton}
                 onClick={() => {
                   if (businesses.length === 0) {
-                    alert('Please create a business first before adding offers!');
+                    showToastNotification('Please create a business first before adding offers!', 'error');
                     return;
                   }
                   if (!subscriptionUtils.canAddOffer(offers.length, subscription)) {
                     const limitMessage = subscriptionUtils.getLimitMessage('offer', offers.length, subscription);
-                    alert(limitMessage + ' Please upgrade to Premium to add more offers.');
+                    showToastNotification(limitMessage + ' Please upgrade to Premium to add more offers.', 'error');
                     return;
                   }
 
-                  // Reset the form for new offer
                   setOfferForm({
                     businessId: '',
                     title: '',
@@ -807,10 +964,7 @@ const handleSubscriptionNavigation = () => {
                     isActive: true
                   });
 
-                  // Clear any existing editing state
                   setEditingOffer(null);
-
-                  // Open the modal
                   setShowOfferModal(true);
                 }}
                 disabled={!subscriptionUtils.canAddOffer(offers.length, subscription)}
@@ -826,61 +980,113 @@ const handleSubscriptionNavigation = () => {
             ) : (
               <div style={styles.offersGrid}>
                 {offers.map((offer) => {
-                  const isCurrentlyActive = isOfferCurrentlyActive(offer);
-                  const startDate = offer.startDate ? new Date(offer.startDate) : null;
-                  const endDate = offer.endDate ? new Date(offer.endDate) : null;
-                  const now = new Date();
+                  const statusInfo = getOfferStatusDisplay(offer);
+                  const business = businesses.find(b => b._id === offer.businessId);
 
                   return (
                     <div key={offer._id} style={styles.offerCard}>
                       <div style={styles.offerHeader}>
                         <h4>{offer.title}</h4>
-                        <span style={isCurrentlyActive ? styles.statusActive : styles.statusInactive}>
-                          {startDate && startDate > now
-                            ? 'Scheduled'
-                            : endDate && endDate < now
-                              ? 'Expired'
-                              : isCurrentlyActive
-                                ? 'Active'
-                                : 'Inactive'}
-                        </span>
+                        <div style={{
+                          ...styles.statusBadge,
+                          color: statusInfo.color,
+                          backgroundColor: statusInfo.backgroundColor,
+                          border: `1px solid ${statusInfo.borderColor}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: '600'
+                        }}>
+                          <span>{statusInfo.icon}</span>
+                          {statusInfo.status}
+                        </div>
                       </div>
+                      
                       <div style={styles.offerContent}>
                         <p style={styles.discount}>{offer.discount} OFF</p>
-                        <p><strong>Business:</strong> {businesses.find(b => b._id === offer.businessId)?.name || 'Unknown'}</p>
+                        <p><strong>Business:</strong> {business?.name || 'Unknown'}</p>
                         <p><strong>Category:</strong> {offer.category}</p>
+                        
                         {offer.startDate && (
                           <p><strong>Start Date:</strong> {new Date(offer.startDate).toLocaleDateString()}</p>
                         )}
                         {offer.endDate && (
                           <p><strong>End Date:</strong> {new Date(offer.endDate).toLocaleDateString()}</p>
                         )}
+                        
+                        {/* Admin review information */}
+                        {offer.reviewedBy && offer.reviewedAt && (
+                          <div style={styles.reviewInfo}>
+                            <p style={{fontSize: '0.85rem', color: '#6c757d', margin: '8px 0 4px 0'}}>
+                              <strong>Reviewed by:</strong> {offer.reviewedBy} on {new Date(offer.reviewedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Status message */}
+                        <div style={{
+                          ...styles.statusMessage,
+                          backgroundColor: statusInfo.backgroundColor,
+                          border: `1px solid ${statusInfo.borderColor}`,
+                          color: statusInfo.color,
+                          padding: '12px',
+                          borderRadius: '6px',
+                          margin: '12px 0',
+                          fontSize: '0.9rem'
+                        }}>
+                          {statusInfo.message}
+                        </div>
+                        
+                        {/* Admin comments for declined offers */}
+                        {offer.adminStatus === 'declined' && offer.adminComments && (
+                          <div style={styles.adminComments}>
+                            <p style={{fontSize: '0.85rem', fontWeight: 'bold', margin: '8px 0 4px 0', color: '#dc3545'}}>
+                              Reason for decline:
+                            </p>
+                            <p style={{fontSize: '0.85rem', color: '#721c24', fontStyle: 'italic', margin: '0'}}>
+                              "{offer.adminComments}"
+                            </p>
+                          </div>
+                        )}
                       </div>
+                      
                       <div style={styles.offerActions}>
-                        <button
-                          style={styles.editBtn}
-                          onClick={() => {
-                            setEditingOffer(offer);
-                            setOfferForm({
-                              businessId: offer.businessId,
-                              title: offer.title,
-                              discount: offer.discount,
-                              startDate: offer.startDate ? offer.startDate.split('T')[0] : '',
-                              endDate: offer.endDate ? offer.endDate.split('T')[0] : '',
-                              category: offer.category || '',
-                              isActive: offer.isActive
-                            });
-                            setShowOfferModal(true);
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          style={styles.toggleBtn}
-                          onClick={() => toggleOfferStatus(offer._id, offer.isActive)}
-                        >
-                          {offer.isActive ? 'Deactivate' : 'Activate'}
-                        </button>
+                        {/* Only show edit button for pending or declined offers */}
+                        {statusInfo.canEdit && (
+                          <button
+                            style={styles.editBtn}
+                            onClick={() => {
+                              setEditingOffer(offer);
+                              setOfferForm({
+                                businessId: offer.businessId,
+                                title: offer.title,
+                                discount: offer.discount,
+                                startDate: offer.startDate ? offer.startDate.split('T')[0] : '',
+                                endDate: offer.endDate ? offer.endDate.split('T')[0] : '',
+                                category: offer.category || '',
+                                isActive: offer.isActive
+                              });
+                              setShowOfferModal(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        
+                        {/* Only show toggle button for approved offers */}
+                        {statusInfo.canToggle && (
+                          <button
+                            style={styles.toggleBtn}
+                            onClick={() => toggleOfferStatus(offer._id, offer.isActive)}
+                          >
+                            {offer.isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                        )}
+                        
+                        {/* Always show delete button */}
                         <button
                           style={styles.deleteBtn}
                           onClick={() => handleDeleteOffer(offer._id)}
@@ -914,7 +1120,6 @@ const handleSubscriptionNavigation = () => {
                 )}
               </div>
 
-              {/* Plan Limits Information */}
               <div style={styles.planLimits}>
                 <h5>Current Plan Limits:</h5>
                 <ul>
@@ -1361,6 +1566,81 @@ const styles = {
     flexWrap: 'wrap',
     gap: '1rem'
   },
+  headerTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    flexWrap: 'wrap'
+  },
+  offersSummaryStats: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap'
+  },
+  summaryBadge: {
+    live: {
+      backgroundColor: '#d4edda',
+      color: '#155724',
+      border: '1px solid #c3e6cb',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontSize: '0.75rem',
+      fontWeight: '600'
+    },
+    pending: {
+      backgroundColor: '#fff3cd',
+      color: '#856404',
+      border: '1px solid #ffeaa7',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontSize: '0.75rem',
+      fontWeight: '600'
+    },
+    declined: {
+      backgroundColor: '#f8d7da',
+      color: '#721c24',
+      border: '1px solid #f5c6cb',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontSize: '0.75rem',
+      fontWeight: '600'
+    }
+  },
+  notificationBanner: {
+    backgroundColor: '#fff3cd',
+    border: '1px solid #ffeaa7',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    margin: '12px 0',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  bannerContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  bannerIcon: {
+    fontSize: '1.2em'
+  },
+  bannerText: {
+    fontSize: '0.9rem',
+    color: '#856404'
+  },
+  bannerClose: {
+    background: 'none',
+    border: 'none',
+    fontSize: '1.5rem',
+    cursor: 'pointer',
+    color: '#856404',
+    padding: '0',
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   limitText: {
     margin: '0.5rem 0 0 0',
     fontSize: '0.85rem',
@@ -1445,11 +1725,6 @@ const styles = {
     fontSize: '0.9rem',
     fontWeight: '500',
     transition: 'background-color 0.2s ease'
-  },
-  dangerZone: {
-    borderTop: '2px solid #dc3545',
-    paddingTop: '2rem',
-    marginTop: '2rem'
   },
   deleteButton: {
     padding: '12px 24px',
@@ -1616,6 +1891,30 @@ const styles = {
     padding: '4px 8px',
     borderRadius: '4px',
     border: '1px solid #bee5eb'
+  },
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    whiteSpace: 'nowrap'
+  },
+  statusMessage: {
+    borderRadius: '6px',
+    padding: '12px',
+    margin: '12px 0',
+    fontSize: '0.9rem',
+    lineHeight: '1.4'
+  },
+  reviewInfo: {
+    borderTop: '1px solid #e9ecef',
+    paddingTop: '12px',
+    marginTop: '12px'
+  },
+  adminComments: {
+    backgroundColor: '#fff3cd',
+    border: '1px solid #ffeaa7',
+    borderRadius: '6px',
+    padding: '12px',
+    margin: '12px 0'
   },
   subscriptionCard: {
     padding: '2rem',

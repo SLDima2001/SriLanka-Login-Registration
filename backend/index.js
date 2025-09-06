@@ -2117,14 +2117,21 @@ const offerSchema = new mongoose.Schema({
   title: { type: String, required: true },
   discount: { type: String, required: true },
   category: String,
-  // Updated date fields
   startDate: { type: Date },
   endDate: { type: Date },
   isActive: { type: Boolean, default: true },
+  // NEW: Admin approval fields
+  adminStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'declined'],
+    default: 'pending'
+  },
+  adminComments: { type: String }, // Optional comments from admin
+  reviewedBy: { type: String }, // Admin username who reviewed
+  reviewedAt: { type: Date }, // When it was reviewed
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-
 offerSchema.plugin(AutoIncrement, { inc_field: 'offerId' });
 const Offer = mongoose.model('Offer', offerSchema);
 
@@ -2506,7 +2513,6 @@ app.get('/api/user/:userId/usage-limits', async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Get user info
     const user = await User.findOne({ userId: parseInt(userId) });
     if (!user) {
       return res.status(404).json({
@@ -2515,7 +2521,6 @@ app.get('/api/user/:userId/usage-limits', async (req, res) => {
       });
     }
 
-    // Check active subscription
     const activeSubscription = await Subscription.findOne({
       $or: [
         { userId: parseInt(userId) },
@@ -2524,7 +2529,6 @@ app.get('/api/user/:userId/usage-limits', async (req, res) => {
       status: 'active'
     }).sort({ createdAt: -1 });
 
-    // If no subscription, user is non-activated
     if (!activeSubscription) {
       return res.json({
         success: true,
@@ -2534,28 +2538,32 @@ app.get('/api/user/:userId/usage-limits', async (req, res) => {
       });
     }
 
-    // Determine subscription type
     const now = new Date();
     const isPremium = activeSubscription.planId === '2' &&
       activeSubscription.status === 'active' &&
       (!activeSubscription.endDate || new Date(activeSubscription.endDate) > now);
 
     const planType = isPremium ? 'Premium' : 'Free';
-
-    // Set limits
     const maxBusinesses = isPremium ? 3 : 1;
     const maxOffers = isPremium ? 3 : 1;
 
-    // Get current usage
     const currentBusinesses = await Business.countDocuments({ userId: parseInt(userId) });
-    const currentActiveOffers = await Offer.countDocuments({ 
+    
+    // Count APPROVED offers only
+    const currentApprovedOffers = await Offer.countDocuments({ 
       userId: parseInt(userId),
+      adminStatus: 'approved',
       isActive: true
     });
 
-    // Calculate remaining
+    // Also get pending offers count
+    const pendingOffers = await Offer.countDocuments({
+      userId: parseInt(userId),
+      adminStatus: 'pending'
+    });
+
     const businessesRemaining = Math.max(0, maxBusinesses - currentBusinesses);
-    const offersRemaining = Math.max(0, maxOffers - currentActiveOffers);
+    const offersRemaining = Math.max(0, maxOffers - currentApprovedOffers);
 
     res.json({
       success: true,
@@ -2577,9 +2585,10 @@ app.get('/api/user/:userId/usage-limits', async (req, res) => {
         },
         offers: {
           max: maxOffers,
-          current: currentActiveOffers,
+          current: currentApprovedOffers,
           remaining: offersRemaining,
-          canCreateMore: offersRemaining > 0
+          canCreateMore: offersRemaining > 0,
+          pending: pendingOffers // NEW: Show pending offers
         }
       },
       features: {
@@ -2652,13 +2661,14 @@ app.post('/api/offers', async (req, res) => {
       });
     }
 
-    // Count existing ACTIVE offers for this user
+    // Count existing APPROVED offers for this user (changed from active to approved)
     const existingOffersCount = await Offer.countDocuments({ 
       userId: userId,
+      adminStatus: 'approved',
       isActive: true
     });
 
-    console.log(`📊 Existing active offers count: ${existingOffersCount}`);
+    console.log(`📊 Existing approved offers count: ${existingOffersCount}`);
 
     // Determine if user has premium access
     const now = new Date();
@@ -2667,22 +2677,22 @@ app.post('/api/offers', async (req, res) => {
       (!activeSubscription.endDate || new Date(activeSubscription.endDate) > now);
 
     // Set offer limits based on subscription type
-    const maxOffers = isPremium ? 3 : 1; // Premium: 3 highlight ads, Free: 1 highlight ad
+    const maxOffers = isPremium ? 3 : 1;
     const planType = isPremium ? 'Premium' : 'Free';
 
-    console.log(`📋 Plan analysis: ${planType} plan allows ${maxOffers} active offers`);
+    console.log(`📋 Plan analysis: ${planType} plan allows ${maxOffers} approved offers`);
 
-    // Check if user has reached their offer limit
+    // Check if user has reached their approved offer limit
     if (existingOffersCount >= maxOffers) {
-      console.log(`❌ Offer limit reached: ${existingOffersCount}/${maxOffers}`);
+      console.log(`❌ Approved offer limit reached: ${existingOffersCount}/${maxOffers}`);
       return res.status(400).json({
         success: false,
-        message: `${planType} plan allows maximum ${maxOffers} active offer${maxOffers > 1 ? 's' : ''} (highlight ad${maxOffers > 1 ? 's' : ''}). You have ${existingOffersCount}/${maxOffers} active offers.`,
+        message: `${planType} plan allows maximum ${maxOffers} approved offer${maxOffers > 1 ? 's' : ''} (highlight ad${maxOffers > 1 ? 's' : ''}). You have ${existingOffersCount}/${maxOffers} approved offers.`,
         planUpgradeRequired: !isPremium,
         currentCount: existingOffersCount,
         maxAllowed: maxOffers,
         planType: planType,
-        hint: isPremium ? 'Consider deactivating an existing offer first.' : 'Upgrade to Premium to create up to 3 offers.'
+        hint: isPremium ? 'Wait for admin approval or consider deactivating an existing offer.' : 'Upgrade to Premium to create up to 3 offers.'
       });
     }
 
@@ -2699,7 +2709,7 @@ app.post('/api/offers', async (req, res) => {
       }
     }
 
-    // All checks passed - create the offer
+    // Create the offer with PENDING status (NEW: Default to pending approval)
     const offer = new Offer({
       userId,
       businessId,
@@ -2709,6 +2719,7 @@ app.post('/api/offers', async (req, res) => {
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
       isActive: isActive !== undefined ? isActive : true,
+      adminStatus: 'pending', // NEW: All offers start as pending
       updatedAt: new Date()
     });
 
@@ -2717,42 +2728,19 @@ app.post('/api/offers', async (req, res) => {
     // Populate business info before returning
     await offer.populate('businessId', 'name');
     
-    console.log(`✅ Offer created successfully: ${offer.title} (ID: ${offer.offerId})`);
-    console.log(`📈 User now has ${existingOffersCount + 1}/${maxOffers} active offers`);
-    
-    // Check if offer should start immediately and send notification
-    const offerStartDate = startDate ? new Date(startDate) : new Date();
-    
-    if (offerStartDate <= new Date()) {
-      // Send email notification asynchronously
-      const offerData = {
-        title: offer.title,
-        discount: offer.discount,
-        category: offer.category,
-        startDate: offer.startDate,
-        endDate: offer.endDate
-      };
-      
-      sendOfferStartNotification(
-        user.email,
-        `${user.firstName} ${user.lastName}`,
-        business.name,
-        offerData
-      ).catch(error => {
-        console.error('Failed to send offer notification:', error);
-      });
-    }
+    console.log(`✅ Offer created and submitted for approval: ${offer.title} (ID: ${offer.offerId})`);
     
     res.json({
       success: true,
-      message: `Offer created successfully! (${existingOffersCount + 1}/${maxOffers} ${planType} plan offers used)`,
+      message: `Offer submitted successfully and is pending admin approval. You'll be notified once it's reviewed.`,
       offer: offer,
       planInfo: {
         planType: planType,
-        offersUsed: existingOffersCount + 1,
+        approvedOffersUsed: existingOffersCount,
         maxOffers: maxOffers,
-        canCreateMore: (existingOffersCount + 1) < maxOffers
-      }
+        canCreateMore: existingOffersCount < maxOffers
+      },
+      pendingApproval: true
     });
 
   } catch (error) {
@@ -2764,6 +2752,295 @@ app.post('/api/offers', async (req, res) => {
     });
   }
 });
+
+app.get('/api/admin/offers', async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    
+    let filter = {};
+    if (status && ['pending', 'approved', 'declined'].includes(status)) {
+      filter.adminStatus = status;
+    }
+
+    // Get offers with business details (this works fine as businessId is ObjectId)
+    const offers = await Offer.find(filter)
+      .populate('businessId', 'name category address phone email website')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const totalOffers = await Offer.countDocuments(filter);
+
+    // Manually fetch user details since userId is a Number field
+    const offersWithUserDetails = await Promise.all(offers.map(async (offer) => {
+      try {
+        // Find user by userId (Number field, not ObjectId)
+        const user = await User.findOne({ userId: offer.userId }).select('firstName lastName email businessName userType');
+        
+        // Add computed status based on dates and admin approval
+        const now = new Date();
+        const startDate = offer.startDate ? new Date(offer.startDate) : null;
+        const endDate = offer.endDate ? new Date(offer.endDate) : null;
+
+        let computedStatus = offer.adminStatus;
+        
+        if (offer.adminStatus === 'approved') {
+          if (startDate && startDate > now) {
+            computedStatus = 'approved-scheduled';
+          } else if (endDate && endDate < now) {
+            computedStatus = 'approved-expired';
+          } else if (!offer.isActive) {
+            computedStatus = 'approved-inactive';
+          } else {
+            computedStatus = 'approved-active';
+          }
+        }
+
+        return {
+          ...offer.toObject(),
+          userDetails: user ? {
+            userId: user.userId,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            businessName: user.businessName,
+            userType: user.userType
+          } : {
+            userId: offer.userId,
+            firstName: 'Unknown',
+            lastName: 'User',
+            email: 'N/A',
+            businessName: 'N/A',
+            userType: 'N/A'
+          },
+          computedStatus
+        };
+      } catch (error) {
+        console.error(`Error fetching user details for userId ${offer.userId}:`, error);
+        return {
+          ...offer.toObject(),
+          userDetails: {
+            userId: offer.userId,
+            firstName: 'Error',
+            lastName: 'Loading',
+            email: 'N/A',
+            businessName: 'N/A',
+            userType: 'N/A'
+          },
+          computedStatus: offer.adminStatus
+        };
+      }
+    }));
+
+    res.json({
+      success: true,
+      offers: offersWithUserDetails,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalOffers / limit),
+        totalOffers,
+        limit: parseInt(limit)
+      },
+      counts: {
+        pending: await Offer.countDocuments({ adminStatus: 'pending' }),
+        approved: await Offer.countDocuments({ adminStatus: 'approved' }),
+        declined: await Offer.countDocuments({ adminStatus: 'declined' })
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching admin offers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch offers for admin review',
+      error: error.message
+    });
+  }
+});
+
+// NEW: Admin approve offer
+app.patch('/api/admin/offers/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminComments, reviewedBy } = req.body;
+
+    const offer = await Offer.findByIdAndUpdate(
+      id,
+      {
+        adminStatus: 'approved',
+        adminComments: adminComments || '',
+        reviewedBy: reviewedBy || 'Admin',
+        reviewedAt: new Date(),
+        updatedAt: new Date()
+      },
+      { new: true }
+    ).populate('businessId', 'name')
+     .populate('userId', 'firstName lastName email');
+
+    if (!offer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found'
+      });
+    }
+
+    console.log(`✅ Offer approved: ${offer.title} by ${reviewedBy || 'Admin'}`);
+
+    // Send approval notification email
+    if (offer.userId && offer.userId.email) {
+      sendOfferApprovalNotification(offer, 'approved').catch(error => {
+        console.error('Failed to send approval notification:', error);
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Offer approved successfully',
+      offer: offer
+    });
+  } catch (error) {
+    console.error('Error approving offer:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve offer'
+    });
+  }
+});
+
+// NEW: Admin decline offer
+app.patch('/api/admin/offers/:id/decline', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminComments, reviewedBy } = req.body;
+
+    if (!adminComments || adminComments.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin comments are required when declining an offer'
+      });
+    }
+
+    const offer = await Offer.findByIdAndUpdate(
+      id,
+      {
+        adminStatus: 'declined',
+        adminComments: adminComments,
+        reviewedBy: reviewedBy || 'Admin',
+        reviewedAt: new Date(),
+        updatedAt: new Date()
+      },
+      { new: true }
+    ).populate('businessId', 'name')
+     .populate('userId', 'firstName lastName email');
+
+    if (!offer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found'
+      });
+    }
+
+    console.log(`❌ Offer declined: ${offer.title} by ${reviewedBy || 'Admin'}`);
+
+    // Send decline notification email
+    if (offer.userId && offer.userId.email) {
+      sendOfferApprovalNotification(offer, 'declined').catch(error => {
+        console.error('Failed to send decline notification:', error);
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Offer declined successfully',
+      offer: offer
+    });
+  } catch (error) {
+    console.error('Error declining offer:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to decline offer'
+    });
+  }
+});
+
+const sendOfferApprovalNotification = async (offer, action) => {
+  const transporter = createTransporter();
+  const user = offer.userId;
+  const business = offer.businessId;
+
+  const isApproved = action === 'approved';
+  const statusColor = isApproved ? '#28a745' : '#dc3545';
+  const statusIcon = isApproved ? '✅' : '❌';
+  const statusText = isApproved ? 'APPROVED' : 'DECLINED';
+
+  const mailOptions = {
+    from: process.env.EMAIL_USERNAME,
+    to: user.email,
+    subject: `${statusIcon} Offer ${statusText} - ${offer.title}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="background: linear-gradient(135deg, ${statusColor}, #007bff); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 28px;">${statusIcon} Offer ${statusText}</h1>
+          <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">Admin review completed</p>
+        </div>
+        
+        <div style="background: white; padding: 30px; border: 1px solid #e9ecef; border-top: none;">
+          <p style="font-size: 18px; margin-bottom: 20px;">Dear <strong>${user.firstName || 'User'}</strong>,</p>
+          
+          <p>Your offer has been <strong style="color: ${statusColor}">${statusText.toLowerCase()}</strong> by our admin team.</p>
+          
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid ${statusColor}; margin: 20px 0;">
+            <h3 style="margin: 0 0 15px; color: ${statusColor};">📢 Offer Details</h3>
+            <p style="margin: 5px 0;"><strong>Title:</strong> ${offer.title}</p>
+            <p style="margin: 5px 0;"><strong>Discount:</strong> <span style="color: ${statusColor}; font-weight: bold; font-size: 18px;">${offer.discount} OFF</span></p>
+            <p style="margin: 5px 0;"><strong>Business:</strong> ${business.name}</p>
+            <p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>
+            <p style="margin: 5px 0;"><strong>Reviewed by:</strong> ${offer.reviewedBy}</p>
+            <p style="margin: 5px 0;"><strong>Review Date:</strong> ${offer.reviewedAt.toLocaleDateString()}</p>
+          </div>
+          
+          ${offer.adminComments ? `
+            <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 20px 0;">
+              <h4 style="margin: 0 0 10px; color: #856404;">💬 Admin Comments:</h4>
+              <p style="margin: 0; font-style: italic;">${offer.adminComments}</p>
+            </div>
+          ` : ''}
+          
+          ${isApproved ? `
+            <div style="background: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h4 style="margin: 0 0 10px; color: #155724;">🎉 Your offer is now live!</h4>
+              <p style="margin: 0;">Customers can now see and use your offer. Monitor its performance in your dashboard.</p>
+            </div>
+          ` : `
+            <div style="background: #f8d7da; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h4 style="margin: 0 0 10px; color: #721c24;">📝 Next Steps</h4>
+              <p style="margin: 0;">Please review the admin comments and feel free to create a new offer that addresses the feedback.</p>
+            </div>
+          `}
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173/dashboard" style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+              View Dashboard
+            </a>
+          </div>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; border-radius: 0 0 8px 8px;">
+          <p style="margin: 0;">This email was sent automatically when your offer was reviewed.</p>
+          <p style="margin: 5px 0 0;">Need help? Contact our support team.</p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ ${statusText} notification sent to ${user.email}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error sending ${statusText} notification:`, error);
+    return false;
+  }
+};
 // Get all offers for a user
 app.get('/api/offers/user/:userId', async (req, res) => {
   try {
@@ -2772,24 +3049,31 @@ app.get('/api/offers/user/:userId', async (req, res) => {
       .populate('businessId', 'name')
       .sort({ createdAt: -1 });
 
-    // Add computed status based on dates
+    // Add computed status including admin approval status
     const offersWithStatus = offers.map(offer => {
       const now = new Date();
       const startDate = offer.startDate ? new Date(offer.startDate) : null;
       const endDate = offer.endDate ? new Date(offer.endDate) : null;
 
-      let computedStatus = 'active';
-      if (startDate && startDate > now) {
-        computedStatus = 'scheduled';
-      } else if (endDate && endDate < now) {
-        computedStatus = 'expired';
-      } else if (!offer.isActive) {
-        computedStatus = 'inactive';
+      let computedStatus = offer.adminStatus; // Start with admin status
+
+      // Only compute time-based status if approved
+      if (offer.adminStatus === 'approved') {
+        if (startDate && startDate > now) {
+          computedStatus = 'approved-scheduled';
+        } else if (endDate && endDate < now) {
+          computedStatus = 'approved-expired';
+        } else if (!offer.isActive) {
+          computedStatus = 'approved-inactive';
+        } else {
+          computedStatus = 'approved-active';
+        }
       }
 
       return {
         ...offer.toObject(),
-        computedStatus
+        computedStatus,
+        canEdit: offer.adminStatus === 'pending' || offer.adminStatus === 'declined'
       };
     });
 
@@ -2805,6 +3089,7 @@ app.get('/api/offers/user/:userId', async (req, res) => {
     });
   }
 });
+
 
 // Create new offer
 // NEW: Route to activate free subscription (when user chooses free plan)
@@ -2904,7 +3189,16 @@ app.post('/api/user/activate-free-plan', async (req, res) => {
 app.put('/api/offers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { businessId, title, discount, category, startDate, endDate, isActive } = req.body;
+    const { businessId, title, discount, category, startDate, endDate, isActive, requiresReapproval } = req.body;
+
+    // Find the existing offer first
+    const existingOffer = await Offer.findById(id);
+    if (!existingOffer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found'
+      });
+    }
 
     // Validate dates if provided
     if (startDate && endDate) {
@@ -2919,6 +3213,7 @@ app.put('/api/offers/:id', async (req, res) => {
       }
     }
 
+    // Prepare update data
     const updateData = {
       title,
       discount,
@@ -2939,30 +3234,180 @@ app.put('/api/offers/:id', async (req, res) => {
       updateData.endDate = endDate ? new Date(endDate) : null;
     }
 
-    const offer = await Offer.findByIdAndUpdate(id, updateData, { new: true })
+    // Check if offer content has actually changed
+    const contentChanged = (
+      existingOffer.title !== title ||
+      existingOffer.discount !== discount ||
+      existingOffer.category !== category ||
+      (existingOffer.startDate?.toISOString().split('T')[0] !== startDate) ||
+      (existingOffer.endDate?.toISOString().split('T')[0] !== endDate) ||
+      existingOffer.businessId.toString() !== businessId
+    );
+
+    console.log(`Offer ${id} edit attempt:`, {
+      contentChanged,
+      currentStatus: existingOffer.adminStatus,
+      title: { old: existingOffer.title, new: title },
+      discount: { old: existingOffer.discount, new: discount }
+    });
+
+    // If content changed and offer was previously approved/declined, reset to pending
+    let statusReset = false;
+    if (contentChanged && (existingOffer.adminStatus === 'approved' || existingOffer.adminStatus === 'declined')) {
+      updateData.adminStatus = 'pending';
+      updateData.adminComments = '';     // Clear previous admin comments
+      updateData.reviewedBy = null;       // Clear previous reviewer
+      updateData.reviewedAt = null;       // Clear previous review date
+      statusReset = true;
+      
+      console.log(`🔄 Offer ${id} content changed - resetting status from ${existingOffer.adminStatus} to pending`);
+    }
+
+    // Update the offer
+    const updatedOffer = await Offer.findByIdAndUpdate(id, updateData, { new: true })
       .populate('businessId', 'name');
 
-    if (!offer) {
+    if (!updatedOffer) {
       return res.status(404).json({
         success: false,
-        message: 'Offer not found'
+        message: 'Failed to update offer'
       });
+    }
+
+    // Send notification email if status was reset to pending
+    if (statusReset) {
+      try {
+        // Get user details for notification
+        const user = await User.findOne({ userId: updatedOffer.userId });
+        if (user) {
+          await sendOfferEditNotification(user, updatedOffer, existingOffer.adminStatus);
+          console.log(`📧 Edit notification sent to ${user.email}`);
+        } else {
+          console.log(`⚠️ User not found for userId: ${updatedOffer.userId}`);
+        }
+      } catch (emailError) {
+        console.error('❌ Failed to send edit notification email:', emailError);
+        // Don't fail the whole request if email fails
+      }
+    }
+
+    // Prepare response message
+    let message = 'Offer updated successfully';
+    if (statusReset) {
+      message = 'Offer updated successfully and resubmitted for admin approval';
+    } else if (existingOffer.adminStatus === 'declined') {
+      message = 'Offer updated successfully';
     }
 
     res.json({
       success: true,
-      message: 'Offer updated successfully',
-      offer: offer
+      message: message,
+      offer: updatedOffer,
+      statusReset: statusReset,
+      previousStatus: existingOffer.adminStatus,
+      contentChanged: contentChanged
     });
+
   } catch (error) {
-    console.error('Error updating offer:', error);
+    console.error('❌ Error updating offer:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update offer'
+      message: 'Failed to update offer',
+      error: error.message
     });
   }
 });
+const sendOfferEditNotification = async (user, updatedOffer, previousStatus) => {
+  const transporter = createTransporter();
+  const business = updatedOffer.businessId;
 
+  const formatDate = (date) => {
+    if (!date) return 'Not set';
+    return new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const mailOptions = {
+    from: process.env.EMAIL_USERNAME,
+    to: user.email,
+    subject: `🔄 Offer Updated - Pending Re-approval: ${updatedOffer.title}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="background: linear-gradient(135deg, #ffc107, #007bff); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 28px;">🔄 Offer Updated</h1>
+          <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">Re-approval required</p>
+        </div>
+        
+        <div style="background: white; padding: 30px; border: 1px solid #e9ecef; border-top: none;">
+          <p style="font-size: 18px; margin-bottom: 20px;">Dear <strong>${user.firstName || 'User'}</strong>,</p>
+          
+          <p>Your offer has been updated and is now pending admin re-approval since the content was modified.</p>
+          
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 20px 0;">
+            <h3 style="margin: 0 0 15px; color: #856404;">📢 Updated Offer Details</h3>
+            <p style="margin: 5px 0;"><strong>Title:</strong> ${updatedOffer.title}</p>
+            <p style="margin: 5px 0;"><strong>Discount:</strong> <span style="color: #28a745; font-weight: bold; font-size: 18px;">${updatedOffer.discount} OFF</span></p>
+            <p style="margin: 5px 0;"><strong>Business:</strong> ${business.name}</p>
+            ${updatedOffer.category ? `<p style="margin: 5px 0;"><strong>Category:</strong> ${updatedOffer.category}</p>` : ''}
+            ${updatedOffer.startDate ? `<p style="margin: 5px 0;"><strong>Start Date:</strong> ${formatDate(updatedOffer.startDate)}</p>` : ''}
+            ${updatedOffer.endDate ? `<p style="margin: 5px 0;"><strong>End Date:</strong> ${formatDate(updatedOffer.endDate)}</p>` : ''}
+            <p style="margin: 15px 0 5px 0;"><strong>Previous Status:</strong> <span style="text-transform: capitalize;">${previousStatus}</span></p>
+            <p style="margin: 5px 0;"><strong>Current Status:</strong> <span style="color: #ffc107; font-weight: bold;">Pending Review</span></p>
+          </div>
+          
+          <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <h4 style="margin: 0 0 10px; color: #856404;">ℹ️ What happens next?</h4>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #856404;">
+              <li>Your updated offer is now pending admin review</li>
+              <li>You'll receive an email once it's approved or if changes are requested</li>
+              <li>The offer will go live automatically once approved</li>
+              <li>You can continue editing while it's pending if needed</li>
+            </ul>
+          </div>
+
+          <div style="background: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
+            <h4 style="margin: 0 0 10px; color: #0c5460;">💡 Tips for faster approval:</h4>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #0c5460;">
+              <li>Ensure your discount amount is clear and realistic</li>
+              <li>Use appropriate start and end dates</li>
+              <li>Choose the correct category for your offer</li>
+              <li>Make sure your offer title is descriptive</li>
+            </ul>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <p style="margin-bottom: 20px; color: #6c757d;">Manage your offers in your dashboard:</p>
+            <a href="http://localhost:5173/dashboard" style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; transition: background-color 0.2s;">
+              View Dashboard
+            </a>
+          </div>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; border-radius: 0 0 8px 8px;">
+          <p style="margin: 0;">This email was sent automatically when you updated your offer.</p>
+          <p style="margin: 5px 0 0;">Need help? Contact our support team.</p>
+          <hr style="border: none; border-top: 1px solid #dee2e6; margin: 15px 0;">
+          <p style="margin: 0; font-size: 12px; color: #adb5bd;">
+            ${updatedOffer.title} • ${business.name} • Updated on ${formatDate(new Date())}
+          </p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Offer edit notification sent to ${user.email} for offer: ${updatedOffer.title}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending offer edit notification:', error);
+    return false;
+  }
+};
 // Delete offer
 app.delete('/api/offers/:id', async (req, res) => {
   try {
@@ -2986,6 +3431,50 @@ app.delete('/api/offers/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete offer'
+    });
+  }
+});
+
+app.get('/api/offers/:id/status-history', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const offer = await Offer.findById(id)
+      .populate('businessId', 'name')
+      .select('title adminStatus reviewedBy reviewedAt updatedAt createdAt adminComments');
+
+    if (!offer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found'
+      });
+    }
+
+    // Calculate if offer was resubmitted
+    const wasResubmitted = offer.updatedAt && offer.reviewedAt && 
+      new Date(offer.updatedAt) > new Date(offer.reviewedAt);
+
+    res.json({
+      success: true,
+      offer: {
+        id: offer._id,
+        title: offer.title,
+        business: offer.businessId.name,
+        currentStatus: offer.adminStatus,
+        wasResubmitted: wasResubmitted,
+        lastUpdated: offer.updatedAt,
+        lastReviewed: offer.reviewedAt,
+        reviewedBy: offer.reviewedBy,
+        adminComments: offer.adminComments,
+        created: offer.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching offer status history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch offer status history'
     });
   }
 });

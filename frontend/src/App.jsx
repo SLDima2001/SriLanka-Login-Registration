@@ -21,6 +21,7 @@ import { AuthContext } from "./AuthContext";
 import DetailedStats from "../pages/DetailedStats.jsx";
 import BusinessUserProfile from "../pages/BusinessUserProfile.jsx";
 import PayHereNotify from "../pages/PayHereNotify.jsx";
+import AdminOffersManagement from "../pages/AdminOffersManagement.jsx";
 
 // Loading component
 const LoadingSpinner = () => (
@@ -74,17 +75,39 @@ const ProtectedRoute = ({ element }) => {
   return element;
 };
 
-// Protected route for admin
+// Protected route for admin - FIXED VERSION
 const AdminProtectedRoute = ({ element }) => {
-  const { adminUser } = useContext(AdminAuthContext);
-  return adminUser ? element : <Navigate to="/adminsignin" replace />;
+  const { adminUser, isLoading } = useContext(AdminAuthContext);
+  
+  // Show loading spinner while checking admin authentication
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+  
+  // Only redirect to signin after loading is complete and no admin user found
+  if (!adminUser) {
+    return <Navigate to="/adminsignin" replace />;
+  }
+  
+  return element;
 };
 
-// Special Protected Route for Admin Register
+// Special Protected Route for Admin Register - FIXED VERSION
 // Only accessible if adminUser is logged in
 const AdminRegisterProtectedRoute = ({ element }) => {
-  const { adminUser } = useContext(AdminAuthContext);
-  return adminUser ? element : <Navigate to="/adminsignin" replace />;
+  const { adminUser, isLoading } = useContext(AdminAuthContext);
+  
+  // Show loading spinner while checking admin authentication
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+  
+  // Only redirect to signin after loading is complete and no admin user found
+  if (!adminUser) {
+    return <Navigate to="/adminsignin" replace />;
+  }
+  
+  return element;
 };
 
 const App = () => {
@@ -142,6 +165,12 @@ const App = () => {
         element={<AdminProtectedRoute element={<AdminDashboard />} />}
       />
 
+      {/* Admin offers management - protected route */}
+      <Route 
+        path="/admin/offers" 
+        element={<AdminProtectedRoute element={<AdminOffersManagement />} />} 
+      />
+      
       {/* Catch all route - redirect to signin */}
       <Route path="*" element={<Navigate to="/signin" replace />} />
     </Routes>

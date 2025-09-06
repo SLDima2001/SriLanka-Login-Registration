@@ -65,7 +65,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       display: "flex",
       gap: "22px",
       marginTop: "30px",
-      marginBottom:'40px'
+      marginBottom: '40px'
     },
 
     // Mobile header styles
@@ -248,7 +248,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
     },
 
     desktopLogoutButton: {
-      marginRight:'20px',
+      marginRight: '20px',
       display: "flex",
       alignItems: "center",
       gap: "8px",
@@ -305,13 +305,23 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       width: "20px",
       textAlign: "center",
     },
-     logoImgStyle :{
-    height: 'auto',
-    width:'80px',
-    marginTop: '0px',
-    marginLeft:'20px'
-  },
+    logoImgStyle: {
+      height: 'auto',
+      width: '80px',
+      marginTop: '0px',
+      marginLeft: '20px'
+    },
 
+  };
+
+    const handleOffersNavigation = () => {
+    try {
+      navigate("/admin/offers");
+      setMobileMenuOpen(false);
+    } catch (error) {
+      console.error("Navigation error:", error);
+      alert("Error navigating to statistics page");
+    }
   };
 
   const handleStatsNavigation = () => {
@@ -458,6 +468,26 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
                 <span>Detailed Statistics</span>
               </button>
 
+
+              <button
+                style={isActiveRoute("/admin/offers") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
+                onClick={handleOffersNavigation}
+                onMouseEnter={(e) => {
+                  if (!isActiveRoute("/admin/offers")) {
+                    e.target.style.backgroundColor = "#f8fafc";
+                    e.target.style.borderColor = "#3b82f6";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActiveRoute("/detailsstats")) {
+                    e.target.style.backgroundColor = "#ffffff";
+                    e.target.style.borderColor = "#e2e8f0";
+                  }
+                }}
+              >
+                <span style={styles.menuItemIcon}>📈</span>
+                <span>Offers Details</span>
+              </button>
               {/* Spacer */}
               <div style={{ flex: 1 }} />
 
@@ -486,7 +516,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
         // Desktop Layout
         <div style={styles.header}>
           <div style={styles.headerTop}>
-             <img src="./Images/Logo.png" alt="LOGO" style={styles.logoImgStyle} />
+            <img src="./Images/Logo.png" alt="LOGO" style={styles.logoImgStyle} />
             <div style={styles.rightSection}>
               {/* User Info Box */}
               <div style={styles.userInfoBox}>
@@ -564,6 +594,25 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
             >
               Detailed statistics
             </button>
+            <button
+                style={isActiveRoute("/admin/offers") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
+                onClick={handleOffersNavigation}
+                onMouseEnter={(e) => {
+                  if (!isActiveRoute("/admin/offers")) {
+                    e.target.style.backgroundColor = "#f8fafc";
+                    e.target.style.borderColor = "#3b82f6";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActiveRoute("/detailsstats")) {
+                    e.target.style.backgroundColor = "#ffffff";
+                    e.target.style.borderColor = "#e2e8f0";
+                  }
+                }}
+              >
+                <span style={styles.menuItemIcon}>📈</span>
+                <span>Offers Details</span>
+              </button>
           </div>
         </div>
       )}
