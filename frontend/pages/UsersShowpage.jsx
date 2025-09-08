@@ -1022,56 +1022,56 @@ const UserShowpage = () => {
       fontSize: "12px",
       color: "#64748b",
     },
-    
+
   };
   const additionalStyles = {
-  subscriptionBadge: {
-    padding: '4px 8px',
-    borderRadius: '12px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    display: 'inline-block',
-    minWidth: '70px'
-  },
-  premiumBadge: {
-    backgroundColor: '#dcfce7',
-    color: '#166534',
-    border: '1px solid #bbf7d0'
-  },
-  freeBadge: {
-    backgroundColor: '#dbeafe',
-    color: '#1e40af',
-    border: '1px solid #bfdbfe'
-  },
-  noPlanBadge: {
-    backgroundColor: '#f3f4f6',
-    color: '#6b7280',
-    border: '1px solid #e5e7eb'
-  },
-  expiredBadge: {
-    backgroundColor: '#fee2e2',
-    color: '#dc2626',
-    border: '1px solid #fecaca'
-  },
-  daysRemaining: {
-    fontSize: '10px',
-    color: '#059669',
-    fontWeight: '500',
-    marginTop: '2px'
-  },
-  expiredText: {
-    fontSize: '10px',
-    color: '#dc2626',
-    fontWeight: '500',
-    marginTop: '2px'
-  },
-  activeDateInfo: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px'
-  }
-};
+    subscriptionBadge: {
+      padding: '4px 8px',
+      borderRadius: '12px',
+      fontSize: '11px',
+      fontWeight: 'bold',
+      textAlign: 'center',
+      display: 'inline-block',
+      minWidth: '70px'
+    },
+    premiumBadge: {
+      backgroundColor: '#dcfce7',
+      color: '#166534',
+      border: '1px solid #bbf7d0'
+    },
+    freeBadge: {
+      backgroundColor: '#dbeafe',
+      color: '#1e40af',
+      border: '1px solid #bfdbfe'
+    },
+    noPlanBadge: {
+      backgroundColor: '#f3f4f6',
+      color: '#6b7280',
+      border: '1px solid #e5e7eb'
+    },
+    expiredBadge: {
+      backgroundColor: '#fee2e2',
+      color: '#dc2626',
+      border: '1px solid #fecaca'
+    },
+    daysRemaining: {
+      fontSize: '10px',
+      color: '#059669',
+      fontWeight: '500',
+      marginTop: '2px'
+    },
+    expiredText: {
+      fontSize: '10px',
+      color: '#dc2626',
+      fontWeight: '500',
+      marginTop: '2px'
+    },
+    activeDateInfo: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px'
+    }
+  };
 
   // CSS animations
   const cssAnimations = `

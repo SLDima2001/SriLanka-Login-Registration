@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-
 const NavBar = ({ adminUser, logoutAdmin }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   // Handle screen size changes
   useEffect(() => {
@@ -17,117 +17,123 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       }
     };
 
-    handleResize(); // Initial check
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Check if current route is active
+  // Handle scroll effect
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const isActiveRoute = (path) => {
     return location.pathname === path;
   };
 
   const styles = {
-    // Main navbar container
     navbar: {
-      backgroundColor: "#ffffff",
+      background: scrolled 
+        ? "rgba(255, 255, 255, 0.95)" 
+        : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      backdropFilter: scrolled ? "blur(10px)" : "none",
       position: "sticky",
       top: 0,
       zIndex: 1000,
-      marginBottom: "0px",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      boxShadow: scrolled 
+        ? "0 8px 32px rgba(0, 0, 0, 0.12)" 
+        : "0 4px 20px rgba(0, 0, 0, 0.1)",
     },
 
-    // Desktop header styles
     header: {
       padding: "0px 0px",
     },
+
     headerTop: {
       display: "flex",
-      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-      borderBottom: "1px solid #e2e8f0",
       alignItems: "center",
       justifyContent: "space-between",
+      padding: "16px 24px",
+      borderBottom: scrolled ? "1px solid rgba(226, 232, 240, 0.3)" : "none",
     },
-    title: {
-      fontSize: "32px",
-      fontWeight: "bold",
-      margin: 0,
-      color: "#1e293b",
-    },
+
     rightSection: {
       display: "flex",
       alignItems: "center",
       gap: "16px",
     },
 
-    // Navigation buttons container for desktop
     navButtonsContainer: {
       display: "flex",
-      gap: "22px",
-      marginTop: "30px",
-      marginBottom: '40px'
+      gap: "12px",
+      padding: "20px 24px 24px",
+      background: scrolled 
+        ? "transparent" 
+        : "linear-gradient(to right, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
     },
 
-    // Mobile header styles
     mobileHeader: {
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: "12px 16px",
-    },
-    mobileTitle: {
-      fontSize: "20px",
-      fontWeight: "bold",
-      margin: 0,
-      color: "#1e293b",
-    },
-    mobileMenuButton: {
-      padding: "8px",
-      backgroundColor: "transparent",
-      border: "1px solid #e2e8f0",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "18px",
-      color: "#374151",
-      transition: "all 0.2s ease",
+      padding: "16px 20px",
+      background: "inherit",
     },
 
-    // Mobile menu overlay
+    mobileMenuButton: {
+      padding: "12px",
+      background: "rgba(255, 255, 255, 0.2)",
+      border: "1px solid rgba(255, 255, 255, 0.3)",
+      borderRadius: "12px",
+      cursor: "pointer",
+      fontSize: "18px",
+      color: scrolled ? "#374151" : "#ffffff",
+      transition: "all 0.3s ease",
+      backdropFilter: "blur(10px)",
+    },
+
     mobileMenuOverlay: {
       position: "fixed",
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      background: "rgba(0, 0, 0, 0.6)",
+      backdropFilter: "blur(4px)",
       zIndex: 999,
       display: mobileMenuOpen ? "block" : "none",
+      animation: mobileMenuOpen ? "fadeIn 0.3s ease" : "fadeOut 0.3s ease",
     },
 
-    // Mobile menu content
     mobileMenu: {
       position: "fixed",
       top: 0,
-      right: mobileMenuOpen ? 0 : "-300px",
-      width: "280px",
+      right: mobileMenuOpen ? 0 : "-320px",
+      width: "300px",
       minHeight: "100vh",
-      backgroundColor: "#ffffff",
-      boxShadow: "-2px 0 10px rgba(0, 0, 0, 0.1)",
+      background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+      boxShadow: "-8px 0 40px rgba(0, 0, 0, 0.15)",
       zIndex: 1000,
-      transition: "right 0.3s ease",
+      transition: "right 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
       display: "flex",
       flexDirection: "column",
     },
 
     mobileMenuHeader: {
-      padding: "20px",
-      borderBottom: "1px solid #e2e8f0",
-      backgroundColor: "#f8fafc",
+      padding: "24px",
+      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      color: "white",
     },
 
     mobileMenuContent: {
       flex: 1,
-      padding: "20px",
+      padding: "24px",
       display: "flex",
       flexDirection: "column",
       gap: "16px",
@@ -135,192 +141,212 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
 
     mobileCloseButton: {
       position: "absolute",
-      top: "16px",
-      right: "16px",
+      top: "20px",
+      right: "20px",
       padding: "8px",
-      backgroundColor: "transparent",
+      background: "rgba(255, 255, 255, 0.2)",
       border: "none",
-      fontSize: "20px",
-      color: "#6b7280",
+      borderRadius: "50%",
+      fontSize: "18px",
+      color: "#ffffff",
       cursor: "pointer",
+      width: "36px",
+      height: "36px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.2s ease",
     },
 
-    // User info styles
     userInfoBox: {
       display: "flex",
       alignItems: "center",
       gap: "12px",
-      padding: "12px 16px",
-      backgroundColor: "#f8fafc",
-      borderRadius: "8px",
-      border: "1px solid #e2e8f0",
+      padding: "16px",
+      background: scrolled 
+        ? "rgba(248, 250, 252, 0.8)" 
+        : "rgba(255, 255, 255, 0.2)",
+      borderRadius: "16px",
+      border: scrolled 
+        ? "1px solid rgba(226, 232, 240, 0.5)" 
+        : "1px solid rgba(255, 255, 255, 0.3)",
+      backdropFilter: "blur(10px)",
+      transition: "all 0.3s ease",
     },
+
     userIcon: {
-      fontSize: "16px",
+      fontSize: "20px",
+      width: "40px",
+      height: "40px",
+      borderRadius: "50%",
+      background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "white",
     },
+
     userName: {
       fontSize: "14px",
       fontWeight: "600",
-      color: "#1e293b",
+      color: scrolled ? "#1e293b" : "#ffffff",
       margin: 0,
-    },
-
-    // Button styles
-    navButton: {
-      padding: "12px 16px",
-      backgroundColor: "#ffffff",
-      border: "1px solid #e2e8f0",
-      borderRadius: "8px",
-      fontSize: "14px",
-      fontWeight: "600",
-      cursor: "pointer",
-      transition: "all 0.2s ease",
-      textAlign: "center",
-      color: "#374151",
-      width: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "8px",
-    },
-
-    // Active state for mobile nav buttons
-    navButtonActive: {
-      padding: "12px 16px",
-      backgroundColor: "#3b82f6",
-      border: "1px solid #3b82f6",
-      borderRadius: "8px",
-      fontSize: "14px",
-      fontWeight: "600",
-      cursor: "pointer",
-      transition: "all 0.2s ease",
-      textAlign: "center",
-      color: "#ffffff",
-      width: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "8px",
+      transition: "color 0.3s ease",
     },
 
     desktopNavButton: {
-      padding: "10px 16px",
-      backgroundColor: "#ffffff",
-      border: "1px solid #e2e8f0",
-      borderRadius: "8px",
+      padding: "14px 28px",
+      background: scrolled 
+        ? "rgba(255, 255, 255, 0.9)" 
+        : "rgba(255, 255, 255, 0.2)",
+      border: scrolled 
+        ? "1px solid rgba(226, 232, 240, 0.5)" 
+        : "1px solid rgba(255, 255, 255, 0.3)",
+      borderRadius: "12px",
       fontSize: "14px",
       fontWeight: "600",
       cursor: "pointer",
-      transition: "all 0.2s ease",
-      textAlign: "center",
-      color: "#374151",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      color: scrolled ? "#374151" : "#ffffff",
+      position: "relative",
+      overflow: "hidden",
+      backdropFilter: "blur(10px)",
     },
 
-    // Active state for desktop nav buttons
     desktopNavButtonActive: {
-      padding: "10px 16px",
-      backgroundColor: "#3b82f6",
-      border: "1px solid #3b82f6",
-      borderRadius: "8px",
+      padding: "14px 28px",
+      background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+      border: "1px solid transparent",
+      borderRadius: "12px",
       fontSize: "14px",
       fontWeight: "600",
       cursor: "pointer",
-      transition: "all 0.2s ease",
-      textAlign: "center",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       color: "#ffffff",
+      boxShadow: "0 8px 25px rgba(59, 130, 246, 0.3)",
+      position: "relative",
+      overflow: "hidden",
+    },
+
+    mobileMenuItem: {
+      display: "flex",
+      alignItems: "center",
+      gap: "16px",
+      padding: "16px 20px",
+      borderRadius: "12px",
+      cursor: "pointer",
+      transition: "all 0.3s ease",
+      color: "#374151",
+      fontSize: "15px",
+      fontWeight: "500",
+      border: "1px solid #e2e8f0",
+      background: "#ffffff",
+      position: "relative",
+      overflow: "hidden",
+    },
+
+    mobileMenuItemActive: {
+      display: "flex",
+      alignItems: "center",
+      gap: "16px",
+      padding: "16px 20px",
+      borderRadius: "12px",
+      cursor: "pointer",
+      transition: "all 0.3s ease",
+      color: "#ffffff",
+      fontSize: "15px",
+      fontWeight: "600",
+      border: "1px solid transparent",
+      background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+      boxShadow: "0 4px 15px rgba(59, 130, 246, 0.3)",
+    },
+
+    menuItemIcon: {
+      fontSize: "18px",
+      width: "24px",
+      textAlign: "center",
     },
 
     logoutButton: {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      gap: "8px",
-      padding: "12px 16px",
-      backgroundColor: "#fee2e2",
-      border: "1px solid #fecaca",
-      borderRadius: "8px",
-      color: "#dc2626",
-      fontSize: "14px",
-      fontWeight: "500",
+      gap: "12px",
+      padding: "16px 20px",
+      background: "linear-gradient(135deg, #ef4444, #dc2626)",
+      border: "none",
+      borderRadius: "12px",
+      color: "#ffffff",
+      fontSize: "15px",
+      fontWeight: "600",
       cursor: "pointer",
-      transition: "all 0.2s ease",
-      width: "100%",
+      transition: "all 0.3s ease",
+      marginTop: "auto",
+      boxShadow: "0 4px 15px rgba(239, 68, 68, 0.3)",
     },
 
     desktopLogoutButton: {
-      marginRight: '20px',
       display: "flex",
       alignItems: "center",
-      gap: "8px",
-      padding: "10px 16px",
-      backgroundColor: "#fee2e2",
-      border: "1px solid #fecaca",
-      borderRadius: "8px",
-      color: "#dc2626",
+      gap: "10px",
+      padding: "12px 20px",
+      background: scrolled 
+        ? "linear-gradient(135deg, #ef4444, #dc2626)" 
+        : "rgba(239, 68, 68, 0.2)",
+      border: scrolled 
+        ? "none" 
+        : "1px solid rgba(255, 255, 255, 0.3)",
+      borderRadius: "12px",
+      color: "#ffffff",
       fontSize: "14px",
-      fontWeight: "500",
+      fontWeight: "600",
       cursor: "pointer",
-      transition: "all 0.2s ease",
+      transition: "all 0.3s ease",
+      backdropFilter: "blur(10px)",
+      boxShadow: scrolled ? "0 4px 15px rgba(239, 68, 68, 0.3)" : "none",
     },
 
     logoutIcon: {
       fontSize: "16px",
-
     },
 
-    // Menu item styles for mobile
-    mobileMenuItem: {
-      display: "flex",
-      alignItems: "center",
-      gap: "12px",
-      padding: "12px 16px",
-      borderRadius: "8px",
-      cursor: "pointer",
-      transition: "all 0.2s ease",
-      color: "#374151",
-      fontSize: "14px",
-      fontWeight: "500",
-      border: "1px solid #e2e8f0",
-      backgroundColor: "#ffffff",
-    },
-
-    // Active state for mobile menu items
-    mobileMenuItemActive: {
-      display: "flex",
-      alignItems: "center",
-      gap: "12px",
-      padding: "12px 16px",
-      borderRadius: "8px",
-      cursor: "pointer",
-      transition: "all 0.2s ease",
-      color: "#ffffff",
-      fontSize: "14px",
-      fontWeight: "500",
-      border: "1px solid #3b82f6",
-      backgroundColor: "#3b82f6",
-    },
-
-    menuItemIcon: {
-      fontSize: "16px",
-      width: "20px",
-      textAlign: "center",
-    },
     logoImgStyle: {
-      height: 'auto',
-      width: '80px',
-      marginTop: '0px',
-      marginLeft: '20px'
+      height: "auto",
+      width: "90px",
+      filter: scrolled ? "none" : "brightness(0) invert(1)",
+      transition: "filter 0.3s ease",
+      borderRadius: "8px",
     },
-
   };
 
-    const handleOffersNavigation = () => {
+  // CSS for animations (inject into head)
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+      @keyframes slideInFromRight {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
+  const handleOffersNavigation = () => {
     try {
       navigate("/admin/offers");
       setMobileMenuOpen(false);
     } catch (error) {
       console.error("Navigation error:", error);
-      alert("Error navigating to statistics page");
+      alert("Error navigating to offers page");
     }
   };
 
@@ -346,16 +372,13 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
 
   const handleLogout = async () => {
     try {
-      console.log("Logout button clicked");
       const confirmLogout = window.confirm("Are you sure you want to logout?");
-
       if (confirmLogout) {
         if (typeof logoutAdmin === 'function') {
           await logoutAdmin();
           navigate("/adminsignin");
           setMobileMenuOpen(false);
         } else {
-          console.error("logoutAdmin is not a function:", typeof logoutAdmin);
           navigate("/adminsignin");
         }
       }
@@ -369,56 +392,76 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  // Debug component props
-  useEffect(() => {
-    console.log("NavBar Props Debug:");
-    console.log("adminUser:", adminUser);
-    console.log("logoutAdmin:", logoutAdmin);
-    console.log("isMobile:", isMobile);
-    console.log("Current path:", location.pathname);
-  }, [adminUser, logoutAdmin, isMobile, location.pathname]);
+  const addHoverEffect = (e, isActive, isLogout = false) => {
+    if (!isActive) {
+      if (isLogout) {
+        e.target.style.transform = "translateY(-2px) scale(1.02)";
+        e.target.style.boxShadow = "0 8px 25px rgba(239, 68, 68, 0.4)";
+      } else {
+        e.target.style.transform = "translateY(-2px) scale(1.02)";
+        e.target.style.boxShadow = "0 8px 25px rgba(59, 130, 246, 0.2)";
+        e.target.style.background = scrolled 
+          ? "rgba(59, 130, 246, 0.1)" 
+          : "rgba(255, 255, 255, 0.3)";
+      }
+    }
+  };
+
+  const removeHoverEffect = (e, isActive, isLogout = false) => {
+    if (!isActive) {
+      e.target.style.transform = "translateY(0) scale(1)";
+      e.target.style.boxShadow = "none";
+      if (!isLogout) {
+        e.target.style.background = "#ffffff";
+      }
+    }
+  };
 
   return (
     <div style={styles.navbar}>
       {isMobile ? (
-        // Mobile Layout
         <>
           <div style={styles.mobileHeader}>
-
+            <img src="./Images/Logo.png" alt="LOGO" style={styles.logoImgStyle} />
             <button
               style={styles.mobileMenuButton}
               onClick={toggleMobileMenu}
               onMouseEnter={(e) => {
-                e.target.style.backgroundColor = "#f3f4f6";
+                e.target.style.background = "rgba(255, 255, 255, 0.3)";
+                e.target.style.transform = "scale(1.1)";
               }}
               onMouseLeave={(e) => {
-                e.target.style.backgroundColor = "transparent";
+                e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                e.target.style.transform = "scale(1)";
               }}
             >
               ☰
             </button>
           </div>
 
-          {/* Mobile Menu Overlay */}
-          <div
-            style={styles.mobileMenuOverlay}
-            onClick={() => setMobileMenuOpen(false)}
-          />
+          <div style={styles.mobileMenuOverlay} onClick={() => setMobileMenuOpen(false)} />
 
-          {/* Mobile Menu */}
           <div style={styles.mobileMenu}>
             <button
               style={styles.mobileCloseButton}
               onClick={() => setMobileMenuOpen(false)}
+              onMouseEnter={(e) => {
+                e.target.style.background = "rgba(255, 255, 255, 0.3)";
+                e.target.style.transform = "rotate(90deg)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "rgba(255, 255, 255, 0.2)";
+                e.target.style.transform = "rotate(0deg)";
+              }}
             >
               ✕
             </button>
 
             <div style={styles.mobileMenuHeader}>
-              <div style={styles.userInfoBox}>
+              <div style={{...styles.userInfoBox, background: "rgba(255, 255, 255, 0.2)", border: "1px solid rgba(255, 255, 255, 0.3)"}}>
                 <div style={styles.userIcon}>👤</div>
                 <div>
-                  <div style={styles.userName}>
+                  <div style={{...styles.userName, color: "#ffffff"}}>
                     {adminUser?.username || adminUser?.name || "Admin"}
                   </div>
                 </div>
@@ -426,85 +469,41 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
             </div>
 
             <div style={styles.mobileMenuContent}>
-              {/* Dashboard Button */}
               <button
                 style={isActiveRoute("/usershowpage") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
                 onClick={handleDashboardNavigation}
-                onMouseEnter={(e) => {
-                  if (!isActiveRoute("/usershowpage")) {
-                    e.target.style.backgroundColor = "#f8fafc";
-                    e.target.style.borderColor = "#3b82f6";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActiveRoute("/usershowpage")) {
-                    e.target.style.backgroundColor = "#ffffff";
-                    e.target.style.borderColor = "#e2e8f0";
-                  }
-                }}
+                onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/usershowpage"))}
+                onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/usershowpage"))}
               >
                 <span style={styles.menuItemIcon}>📊</span>
                 <span>Dashboard</span>
               </button>
 
-              {/* Statistics Button */}
               <button
                 style={isActiveRoute("/detailsstats") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
                 onClick={handleStatsNavigation}
-                onMouseEnter={(e) => {
-                  if (!isActiveRoute("/detailsstats")) {
-                    e.target.style.backgroundColor = "#f8fafc";
-                    e.target.style.borderColor = "#3b82f6";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActiveRoute("/detailsstats")) {
-                    e.target.style.backgroundColor = "#ffffff";
-                    e.target.style.borderColor = "#e2e8f0";
-                  }
-                }}
+                onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/detailsstats"))}
+                onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/detailsstats"))}
               >
                 <span style={styles.menuItemIcon}>📈</span>
                 <span>Detailed Statistics</span>
               </button>
 
-
               <button
                 style={isActiveRoute("/admin/offers") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
                 onClick={handleOffersNavigation}
-                onMouseEnter={(e) => {
-                  if (!isActiveRoute("/admin/offers")) {
-                    e.target.style.backgroundColor = "#f8fafc";
-                    e.target.style.borderColor = "#3b82f6";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActiveRoute("/detailsstats")) {
-                    e.target.style.backgroundColor = "#ffffff";
-                    e.target.style.borderColor = "#e2e8f0";
-                  }
-                }}
+                onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/admin/offers"))}
+                onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/admin/offers"))}
               >
-                <span style={styles.menuItemIcon}>📈</span>
+                <span style={styles.menuItemIcon}>🎁</span>
                 <span>Offers Details</span>
               </button>
-              {/* Spacer */}
-              <div style={{ flex: 1 }} />
 
-              {/* Logout Button */}
               <button
                 style={styles.logoutButton}
                 onClick={handleLogout}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = "#fecaca";
-                  e.target.style.borderColor = "#f87171";
-                  e.target.style.color = "#b91c1c";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = "#fee2e2";
-                  e.target.style.borderColor = "#fecaca";
-                  e.target.style.color = "#dc2626";
-                }}
+                onMouseEnter={(e) => addHoverEffect(e, false, true)}
+                onMouseLeave={(e) => removeHoverEffect(e, false, true)}
               >
                 <span style={styles.logoutIcon}>🚪</span>
                 <span>Logout</span>
@@ -513,12 +512,10 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
           </div>
         </>
       ) : (
-        // Desktop Layout
         <div style={styles.header}>
           <div style={styles.headerTop}>
             <img src="./Images/Logo.png" alt="LOGO" style={styles.logoImgStyle} />
             <div style={styles.rightSection}>
-              {/* User Info Box */}
               <div style={styles.userInfoBox}>
                 <div style={styles.userIcon}>👤</div>
                 <div>
@@ -528,20 +525,11 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
                 </div>
               </div>
 
-              {/* Logout Button */}
               <button
                 style={styles.desktopLogoutButton}
                 onClick={handleLogout}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = "#fecaca";
-                  e.target.style.borderColor = "#f87171";
-                  e.target.style.color = "#b91c1c";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = "#fee2e2";
-                  e.target.style.borderColor = "#fecaca";
-                  e.target.style.color = "#dc2626";
-                }}
+                onMouseEnter={(e) => addHoverEffect(e, false, true)}
+                onMouseLeave={(e) => removeHoverEffect(e, false, true)}
               >
                 <span style={styles.logoutIcon}>🚪</span>
                 <span>Logout</span>
@@ -549,70 +537,33 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
             </div>
           </div>
 
-          {/* Navigation Buttons Container */}
           <div style={styles.navButtonsContainer}>
-            {/* Dashboard Button */}
             <button
               style={isActiveRoute("/usershowpage") ? styles.desktopNavButtonActive : styles.desktopNavButton}
               onClick={handleDashboardNavigation}
-              onMouseEnter={(e) => {
-                if (!isActiveRoute("/usershowpage")) {
-                  e.target.style.backgroundColor = "#f8fafc";
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 8px 15px -3px rgba(0, 0, 0, 0.1)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActiveRoute("/usershowpage")) {
-                  e.target.style.backgroundColor = "#ffffff";
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "none";
-                }
-              }}
+              onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/usershowpage"))}
+              onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/usershowpage"))}
             >
-              User dashboard
+              📊 User Dashboard
             </button>
 
-            {/* Statistics Button */}
             <button
               style={isActiveRoute("/detailsstats") ? styles.desktopNavButtonActive : styles.desktopNavButton}
               onClick={handleStatsNavigation}
-              onMouseEnter={(e) => {
-                if (!isActiveRoute("/detailsstats")) {
-                  e.target.style.backgroundColor = "#f8fafc";
-                  e.target.style.transform = "translateY(-2px)";
-                  e.target.style.boxShadow = "0 8px 15px -3px rgba(0, 0, 0, 0.1)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActiveRoute("/detailsstats")) {
-                  e.target.style.backgroundColor = "#ffffff";
-                  e.target.style.transform = "translateY(0)";
-                  e.target.style.boxShadow = "none";
-                }
-              }}
+              onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/detailsstats"))}
+              onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/detailsstats"))}
             >
-              Detailed statistics
+              📈 Detailed Statistics
             </button>
+
             <button
-                style={isActiveRoute("/admin/offers") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
-                onClick={handleOffersNavigation}
-                onMouseEnter={(e) => {
-                  if (!isActiveRoute("/admin/offers")) {
-                    e.target.style.backgroundColor = "#f8fafc";
-                    e.target.style.borderColor = "#3b82f6";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActiveRoute("/detailsstats")) {
-                    e.target.style.backgroundColor = "#ffffff";
-                    e.target.style.borderColor = "#e2e8f0";
-                  }
-                }}
-              >
-                <span style={styles.menuItemIcon}>📈</span>
-                <span>Offers Details</span>
-              </button>
+              style={isActiveRoute("/admin/offers") ? styles.desktopNavButtonActive : styles.desktopNavButton}
+              onClick={handleOffersNavigation}
+              onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/admin/offers"))}
+              onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/admin/offers"))}
+            >
+              🎁 Offers Details
+            </button>
           </div>
         </div>
       )}

@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
-import { AdminAuthContext } from '../src/AdminAuthContext';
+import { useNavigate } from 'react-router-dom';
 import NavBar from '../component/Navbar';
+import { AdminAuthContext } from '../src/AdminAuthContext';
 
 const AdminOffersManagement = () => {
+
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [filter, setFilter] = useState('all');
   const [counts, setCounts] = useState({
     pending: 0,
@@ -18,8 +21,8 @@ const AdminOffersManagement = () => {
   const [actionType, setActionType] = useState('');
   const [adminComments, setAdminComments] = useState('');
   const [processing, setProcessing] = useState(false);
-  
-  // NEW: Edit offer states
+
+  // Edit offer states
   const [showEditModal, setShowEditModal] = useState(false);
   const [editOfferData, setEditOfferData] = useState({
     title: '',
@@ -30,53 +33,100 @@ const AdminOffersManagement = () => {
     isActive: true
   });
 
-  const { adminUser, isAdminLoggedIn, logoutAdmin } = useContext(AdminAuthContext);
+  const { adminUser, isLoading, logoutAdmin } = useContext(AdminAuthContext);
 
-  // Complete styles object
   const styles = {
     container: {
+      fontSize: '16px',
       minHeight: '100vh',
-      width: '100%',
-      backgroundColor: '#f8f9fa',
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      padding: '20px',
-      boxSizing: 'border-box',
+      backgroundColor: '#f8fafc',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      padding: '2rem',
     },
     header: {
-      background: 'linear-gradient(135deg, #007bff, #6610f2)',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       color: 'white',
-      padding: '30px',
-      borderRadius: '12px',
+      padding: '2rem',
+      borderRadius: '16px',
       textAlign: 'center',
-      marginBottom: '30px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      marginBottom: '2rem',
+      boxShadow: '0 10px 25px rgba(102, 126, 234, 0.25)',
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    headerOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+      zIndex: 1,
+    },
+    headerContent: {
+      position: 'relative',
+      zIndex: 2,
     },
     headerTitle: {
-      margin: '0 0 10px 0',
-      fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
+      margin: '0 0 0.5rem 0',
+      fontSize: 'clamp(2rem, 4vw, 3rem)',
       fontWeight: '700',
+      letterSpacing: '-0.02em',
+      textShadow: '0 2px 4px rgba(0,0,0,0.1)',
     },
     headerSubtitle: {
       margin: '0',
-      fontSize: 'clamp(1rem, 2vw, 1.1rem)',
+      fontSize: 'clamp(1rem, 2vw, 1.25rem)',
       opacity: '0.9',
+      fontWeight: '400',
+    },
+    statsContainer: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '1.5rem',
+      marginBottom: '2rem',
+    },
+    statCard: {
+      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+      padding: '1.5rem',
+      borderRadius: '12px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1)',
+      border: '1px solid rgba(255, 255, 255, 0.5)',
+      textAlign: 'center',
+      transition: 'all 0.3s ease',
+    },
+    statNumber: {
+      fontSize: '2.5rem',
+      fontWeight: '800',
+      margin: '0 0 0.5rem 0',
+      background: 'linear-gradient(135deg, #667eea, #764ba2)',
+      backgroundClip: 'text',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+    },
+    statLabel: {
+      fontSize: '0.875rem',
+      fontWeight: '600',
+      color: '#64748b',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
     },
     loadingSpinner: {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '60px 20px',
-      color: '#6c757d',
+      padding: '4rem 2rem',
+      color: '#64748b',
     },
     spinner: {
-      width: '40px',
-      height: '40px',
-      border: '4px solid #e3e3e3',
-      borderTop: '4px solid #007bff',
+      width: '48px',
+      height: '48px',
+      border: '4px solid #e2e8f0',
+      borderTop: '4px solid #667eea',
       borderRadius: '50%',
       animation: 'spin 1s linear infinite',
-      marginBottom: '15px',
+      marginBottom: '1rem',
     },
     spinnerSmall: {
       display: 'inline-block',
@@ -88,159 +138,213 @@ const AdminOffersManagement = () => {
       animation: 'spin 1s linear infinite',
       marginRight: '8px',
     },
-    errorMessage: {
-      backgroundColor: '#f8d7da',
-      color: '#721c24',
-      border: '1px solid #f5c6cb',
-      borderRadius: '8px',
-      padding: '15px',
-      marginBottom: '20px',
+    alertContainer: {
+      padding: '1rem 1.5rem',
+      borderRadius: '12px',
+      marginBottom: '1.5rem',
       display: 'flex',
       alignItems: 'center',
+      fontWeight: '500',
+      border: '1px solid',
     },
-    errorIcon: {
-      marginRight: '10px',
-      fontSize: '1.2rem',
+    errorAlert: {
+      backgroundColor: '#fef2f2',
+      color: '#dc2626',
+      borderColor: '#fecaca',
+    },
+    successAlert: {
+      backgroundColor: '#f0fdf4',
+      color: '#16a34a',
+      borderColor: '#bbf7d0',
+    },
+    alertIcon: {
+      marginRight: '12px',
+      fontSize: '1.25rem',
     },
     filterTabs: {
       display: 'flex',
-      gap: '10px',
-      marginBottom: '30px',
+      gap: '0.75rem',
+      marginBottom: '2rem',
       background: 'white',
-      padding: '10px',
-      borderRadius: '12px',
-      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+      padding: '0.75rem',
+      borderRadius: '16px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1)',
       overflowX: 'auto',
-      border: '1px solid #e9ecef',
+      border: '1px solid #e2e8f0',
     },
     filterTab: {
-      padding: '12px 20px',
+      padding: '0.75rem 1.5rem',
       border: 'none',
-      background: '#f8f9fa',
-      color: '#6c757d',
-      borderRadius: '8px',
+      background: 'transparent',
+      color: '#64748b',
+      borderRadius: '12px',
       cursor: 'pointer',
-      fontWeight: '500',
-      fontSize: '14px',
+      fontWeight: '600',
+      fontSize: '0.875rem',
       transition: 'all 0.3s ease',
       whiteSpace: 'nowrap',
-      minWidth: 'fit-content',
+      position: 'relative',
+      overflow: 'hidden',
     },
     filterTabActive: {
-      background: '#007bff',
+      background: 'linear-gradient(135deg, #667eea, #764ba2)',
       color: 'white',
-      boxShadow: '0 2px 4px rgba(0, 123, 255, 0.3)',
+      boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+      transform: 'translateY(-2px)',
     },
     offersList: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '20px',
+      gap: '1.5rem',
     },
     noOffers: {
       textAlign: 'center',
-      padding: '60px 20px',
-      background: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-      color: '#6c757d',
-      border: '1px solid #e9ecef',
+      padding: '4rem 2rem',
+      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+      borderRadius: '16px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1)',
+      color: '#64748b',
+      border: '1px solid #e2e8f0',
     },
     noOffersIcon: {
       fontSize: '4rem',
-      marginBottom: '20px',
+      marginBottom: '1rem',
+      opacity: '0.5',
     },
     offerCard: {
-      background: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+      borderRadius: '16px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1)',
       overflow: 'hidden',
-      transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-      border: '1px solid #e9ecef',
+      transition: 'all 0.3s ease',
+      border: '1px solid #e2e8f0',
+      position: 'relative',
     },
     offerCardHeader: {
-      background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
-      padding: '20px',
-      borderBottom: '1px solid #dee2e6',
+      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+      padding: '1.5rem',
+      borderBottom: '1px solid #e2e8f0',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
       flexWrap: 'wrap',
-      gap: '15px',
+      gap: '1rem',
     },
     offerTitleSection: {
       flex: '1',
-      minWidth: '250px',
+      minWidth: '300px',
     },
     offerTitle: {
-      margin: '0 0 10px 0',
-      color: '#212529',
-      fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
-      fontWeight: '600',
+      margin: '0 0 0.75rem 0',
+      color: '#1e293b',
+      fontSize: 'clamp(1.25rem, 3vw, 1.75rem)',
+      fontWeight: '700',
       lineHeight: '1.3',
+      letterSpacing: '-0.01em',
     },
     offerDiscount: {
-      background: 'linear-gradient(135deg, #28a745, #20c997)',
+      background: 'linear-gradient(135deg, #10b981, #059669)',
       color: 'white',
-      padding: '8px 16px',
-      borderRadius: '20px',
+      padding: '0.5rem 1rem',
+      borderRadius: '9999px',
       fontWeight: '700',
-      fontSize: '1.1rem',
-      display: 'inline-block',
-      boxShadow: '0 2px 4px rgba(40, 167, 69, 0.3)',
+      fontSize: '1rem',
+      display: 'inline-flex',
+      alignItems: 'center',
+      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)',
+      letterSpacing: '0.025em',
     },
     statusBadge: {
-      padding: '6px 12px',
-      borderRadius: '20px',
-      fontSize: '0.85rem',
-      fontWeight: '600',
+      padding: '0.5rem 1rem',
+      borderRadius: '9999px',
+      fontSize: '0.75rem',
+      fontWeight: '700',
       textTransform: 'uppercase',
-      letterSpacing: '0.5px',
+      letterSpacing: '0.1em',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.375rem',
     },
     statusPending: {
-      backgroundColor: '#fff3cd',
-      color: '#856404',
-      border: '1px solid #ffeaa7',
+      backgroundColor: '#fef3c7',
+      color: '#d97706',
+      border: '1px solid #fed7aa',
     },
     statusApproved: {
-      backgroundColor: '#d4edda',
-      color: '#155724',
-      border: '1px solid #c3e6cb',
+      backgroundColor: '#d1fae5',
+      color: '#059669',
+      border: '1px solid #a7f3d0',
     },
     statusDeclined: {
-      backgroundColor: '#f8d7da',
-      color: '#721c24',
-      border: '1px solid #f5c6cb',
+      backgroundColor: '#fecaca',
+      color: '#dc2626',
+      border: '1px solid #f87171',
     },
     offerCardBody: {
-      padding: '25px',
+      padding: '2rem',
     },
-    detailsGrid: {
+    sectionsContainer: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-      gap: '25px',
-      marginBottom: '25px',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+      gap: '1.5rem',
+      marginBottom: '2rem',
     },
-    detailSection: {
-      background: '#f8f9fa',
-      padding: '20px',
+    section: {
+      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+      padding: '1.5rem',
+      borderRadius: '12px',
+      border: '1px solid #e2e8f0',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
+      position: 'relative',
+    },
+    sectionHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      marginBottom: '1.25rem',
+      paddingBottom: '0.75rem',
+      borderBottom: '2px solid #e2e8f0',
+    },
+    sectionIcon: {
+      width: '2rem',
+      height: '2rem',
       borderRadius: '8px',
-      borderLeft: '4px solid #007bff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: '0.75rem',
+      fontSize: '1rem',
+      fontWeight: '600',
+    },
+    businessIcon: {
+      background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+      color: 'white',
+    },
+    userIcon: {
+      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+      color: 'white',
+    },
+    offerIcon: {
+      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+      color: 'white',
+    },
+    reviewIcon: {
+      background: 'linear-gradient(135deg, #10b981, #059669)',
+      color: 'white',
     },
     sectionTitle: {
-      margin: '0 0 15px 0',
-      color: '#007bff',
-      fontSize: '1.1rem',
-      fontWeight: '600',
-      borderBottom: '2px solid #007bff',
-      paddingBottom: '5px',
+      margin: '0',
+      color: '#1e293b',
+      fontSize: '1.125rem',
+      fontWeight: '700',
+      letterSpacing: '-0.01em',
     },
     detailItem: {
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
-      marginBottom: '10px',
-      paddingBottom: '8px',
-      borderBottom: '1px solid #e9ecef',
+      marginBottom: '0.75rem',
+      paddingBottom: '0.75rem',
+      borderBottom: '1px solid #f1f5f9',
     },
     detailItemLast: {
       marginBottom: '0',
@@ -249,46 +353,43 @@ const AdminOffersManagement = () => {
     },
     label: {
       fontWeight: '600',
-      color: '#495057',
+      color: '#475569',
       minWidth: '120px',
       flexShrink: '0',
+      fontSize: '0.875rem',
     },
     value: {
-      color: '#212529',
+      color: '#1e293b',
       textAlign: 'right',
       flex: '1',
-      marginLeft: '15px',
+      marginLeft: '1rem',
       wordBreak: 'break-word',
+      fontSize: '0.875rem',
+      fontWeight: '500',
     },
     adminComments: {
       fontStyle: 'italic',
       textAlign: 'left',
-      background: '#fff',
-      padding: '10px',
-      borderRadius: '4px',
-      borderLeft: '3px solid #ffc107',
-    },
-    adminReviewSection: {
-      background: '#e7f3ff',
-      padding: '20px',
+      background: '#fffbeb',
+      padding: '0.75rem',
       borderRadius: '8px',
-      borderLeft: '4px solid #0066cc',
-      marginBottom: '20px',
+      borderLeft: '4px solid #f59e0b',
+      fontSize: '0.875rem',
     },
-    offerActions: {
+    actionsContainer: {
       display: 'flex',
-      gap: '10px',
+      gap: '0.75rem',
       justifyContent: 'center',
-      paddingTop: '20px',
-      borderTop: '1px solid #dee2e6',
+      paddingTop: '1.5rem',
+      borderTop: '2px solid #e2e8f0',
       flexWrap: 'wrap',
     },
     btn: {
-      padding: '10px 20px',
+      padding: '0.75rem 1.5rem',
       border: 'none',
-      borderRadius: '8px',
+      borderRadius: '12px',
       fontWeight: '600',
-      fontSize: '0.9rem',
+      fontSize: '0.875rem',
       cursor: 'pointer',
       transition: 'all 0.3s ease',
       display: 'inline-flex',
@@ -296,31 +397,34 @@ const AdminOffersManagement = () => {
       justifyContent: 'center',
       minWidth: '120px',
       textDecoration: 'none',
+      position: 'relative',
+      overflow: 'hidden',
+      letterSpacing: '0.025em',
     },
     btnApprove: {
-      background: 'linear-gradient(135deg, #28a745, #20c997)',
+      background: 'linear-gradient(135deg, #10b981, #059669)',
       color: 'white',
-      boxShadow: '0 4px 6px rgba(40, 167, 69, 0.3)',
+      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)',
     },
     btnDecline: {
-      background: 'linear-gradient(135deg, #dc3545, #e83e8c)',
+      background: 'linear-gradient(135deg, #ef4444, #dc2626)',
       color: 'white',
-      boxShadow: '0 4px 6px rgba(220, 53, 69, 0.3)',
+      boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
     },
     btnEdit: {
-      background: 'linear-gradient(135deg, #ffc107, #fd7e14)',
+      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
       color: 'white',
-      boxShadow: '0 4px 6px rgba(255, 193, 7, 0.3)',
+      boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)',
     },
     btnDelete: {
-      background: 'linear-gradient(135deg, #6c757d, #495057)',
+      background: 'linear-gradient(135deg, #64748b, #475569)',
       color: 'white',
-      boxShadow: '0 4px 6px rgba(108, 117, 125, 0.3)',
+      boxShadow: '0 4px 12px rgba(100, 116, 139, 0.4)',
     },
     btnSecondary: {
-      background: '#6c757d',
-      color: 'white',
-      boxShadow: '0 4px 6px rgba(108, 117, 125, 0.3)',
+      background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)',
+      color: '#475569',
+      boxShadow: '0 4px 12px rgba(148, 163, 184, 0.4)',
     },
     modalOverlay: {
       position: 'fixed',
@@ -333,122 +437,130 @@ const AdminOffersManagement = () => {
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: '1000',
-      backdropFilter: 'blur(4px)',
+      backdropFilter: 'blur(8px)',
     },
     modal: {
       background: 'white',
-      borderRadius: '12px',
+      borderRadius: '16px',
       width: '90%',
       maxWidth: '600px',
       maxHeight: '90vh',
       overflowY: 'auto',
-      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+      boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
       animation: 'modalAppear 0.3s ease-out',
     },
     modalHeader: {
-      padding: '25px',
-      borderBottom: '1px solid #dee2e6',
+      padding: '2rem',
+      borderBottom: '1px solid #e2e8f0',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
-      borderRadius: '12px 12px 0 0',
+      background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)',
+      borderRadius: '16px 16px 0 0',
     },
     modalTitle: {
       margin: '0',
-      color: '#212529',
-      fontSize: '1.4rem',
-      fontWeight: '600',
+      color: '#1e293b',
+      fontSize: '1.5rem',
+      fontWeight: '700',
+      letterSpacing: '-0.01em',
     },
     modalClose: {
       background: 'none',
       border: 'none',
       fontSize: '1.5rem',
-      color: '#6c757d',
+      color: '#64748b',
       cursor: 'pointer',
-      padding: '5px',
+      padding: '0.5rem',
       borderRadius: '50%',
-      width: '35px',
-      height: '35px',
+      width: '40px',
+      height: '40px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       transition: 'all 0.3s ease',
     },
     modalBody: {
-      padding: '25px',
+      padding: '2rem',
     },
     offerSummary: {
-      background: '#f8f9fa',
-      padding: '20px',
-      borderRadius: '8px',
-      marginBottom: '25px',
-      borderLeft: '4px solid #007bff',
+      background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+      padding: '1.5rem',
+      borderRadius: '12px',
+      marginBottom: '1.5rem',
+      border: '1px solid #0ea5e9',
     },
     modalFooter: {
-      padding: '20px 25px',
-      borderTop: '1px solid #dee2e6',
+      padding: '1.5rem 2rem',
+      borderTop: '1px solid #e2e8f0',
       display: 'flex',
-      gap: '15px',
+      gap: '1rem',
       justifyContent: 'flex-end',
-      background: '#f8f9fa',
-      borderRadius: '0 0 12px 12px',
+      background: '#f8fafc',
+      borderRadius: '0 0 16px 16px',
       flexWrap: 'wrap',
     },
     textarea: {
       width: '100%',
-      padding: '12px',
-      border: '2px solid #e9ecef',
-      borderRadius: '8px',
+      padding: '0.75rem',
+      border: '2px solid #e2e8f0',
+      borderRadius: '12px',
       fontFamily: 'inherit',
-      fontSize: '0.95rem',
-      lineHeight: '1.5',
+      fontSize: '0.875rem',
+      lineHeight: '1.6',
       resize: 'vertical',
-      transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+      transition: 'all 0.3s ease',
       boxSizing: 'border-box',
     },
     input: {
       width: '100%',
-      padding: '12px',
-      border: '2px solid #e9ecef',
-      borderRadius: '8px',
+      padding: '0.75rem',
+      border: '2px solid #e2e8f0',
+      borderRadius: '12px',
       fontFamily: 'inherit',
-      fontSize: '0.95rem',
-      transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+      fontSize: '0.875rem',
+      transition: 'all 0.3s ease',
       boxSizing: 'border-box',
     },
     formGroup: {
-      marginBottom: '20px',
+      marginBottom: '1.5rem',
     },
     formLabel: {
       display: 'block',
-      marginBottom: '8px',
+      marginBottom: '0.5rem',
       fontWeight: '600',
-      color: '#495057',
+      color: '#374151',
+      fontSize: '0.875rem',
     },
     validationError: {
-      color: '#dc3545',
-      fontSize: '0.85rem',
-      marginTop: '5px',
-      marginBottom: '0',
+      color: '#dc2626',
+      fontSize: '0.75rem',
+      marginTop: '0.25rem',
+      fontWeight: '500',
     },
   };
+
+  // Clear success message after 5 seconds
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
 
   useEffect(() => {
     fetchOffers();
   }, [filter]);
 
-  useEffect(() => {
-    if (!isAdminLoggedIn()) {
-      console.log('Admin not logged in');
-    }
-  }, [isAdminLoggedIn]);
-
   const fetchOffers = async () => {
     try {
       setLoading(true);
       setError('');
-      
+
+      console.log('Fetching offers for filter:', filter);
+
       const response = await axios.get('http://localhost:5555/api/admin/offers', {
         params: {
           status: filter === 'all' ? undefined : filter,
@@ -456,11 +568,13 @@ const AdminOffersManagement = () => {
         }
       });
 
+      console.log('Fetch response:', response.data);
+
       if (response.data.success) {
         setOffers(response.data.offers);
         setCounts(response.data.counts);
       } else {
-        setError('Failed to fetch offers');
+        setError(response.data.message || 'Failed to fetch offers');
       }
     } catch (error) {
       console.error('Error fetching offers:', error);
@@ -475,6 +589,7 @@ const AdminOffersManagement = () => {
     setActionType(action);
     setAdminComments('');
     setShowModal(true);
+    setError('');
   };
 
   const closeModal = () => {
@@ -482,6 +597,7 @@ const AdminOffersManagement = () => {
     setSelectedOffer(null);
     setActionType('');
     setAdminComments('');
+    setError('');
   };
 
   const openEditModal = (offer) => {
@@ -495,6 +611,7 @@ const AdminOffersManagement = () => {
       isActive: offer.isActive !== undefined ? offer.isActive : true
     });
     setShowEditModal(true);
+    setError('');
   };
 
   const closeEditModal = () => {
@@ -508,29 +625,39 @@ const AdminOffersManagement = () => {
       endDate: '',
       isActive: true
     });
+    setError('');
   };
 
   const handleEditOffer = async () => {
     if (!selectedOffer || !editOfferData.title || !editOfferData.discount) {
-      alert('Please fill in all required fields');
+      setError('Please fill in all required fields');
       return;
     }
 
     try {
       setProcessing(true);
-      
+      setError('');
+
+      console.log('Updating offer:', selectedOffer._id, editOfferData);
+
       const response = await axios.put(`http://localhost:5555/api/admin/offers/${selectedOffer._id}`, editOfferData);
 
-      if (response.data.success) {
-        alert('Offer updated successfully!');
+      console.log('Edit response:', response.data);
+
+      if (response.data && response.data.success) {
+        console.log('Offer updated successfully');
+        setSuccess('Offer updated successfully!');
         closeEditModal();
-        fetchOffers();
+        await fetchOffers();
       } else {
-        alert(response.data.message || 'Failed to update offer');
+        const errorMessage = response.data?.message || 'Failed to update offer';
+        console.error('Edit offer failed:', errorMessage);
+        setError(errorMessage);
       }
     } catch (error) {
       console.error('Error updating offer:', error);
-      alert(error.response?.data?.message || 'Error updating offer');
+      const errorMessage = error.response?.data?.message || error.message || 'Error updating offer';
+      setError(errorMessage);
     } finally {
       setProcessing(false);
     }
@@ -542,47 +669,89 @@ const AdminOffersManagement = () => {
     }
 
     try {
+      setError('');
+      setProcessing(true);
+
+      console.log('Deleting offer:', offerId);
+
       const response = await axios.delete(`http://localhost:5555/api/admin/offers/${offerId}`);
 
-      if (response.data.success) {
-        alert('Offer deleted successfully!');
-        fetchOffers();
+      console.log('Delete response:', response.data);
+
+      if (response.data && response.data.success) {
+        console.log('Offer deleted successfully');
+        setSuccess(`Offer "${response.data.deletedOffer?.title || 'Unknown'}" deleted successfully!`);
+        await fetchOffers();
       } else {
-        alert(response.data.message || 'Failed to delete offer');
+        const errorMessage = response.data?.message || 'Failed to delete offer';
+        console.error('Delete offer failed:', errorMessage);
+        setError(errorMessage);
       }
     } catch (error) {
       console.error('Error deleting offer:', error);
-      alert(error.response?.data?.message || 'Error deleting offer');
+      const errorMessage = error.response?.data?.message || error.message || 'Error deleting offer';
+      setError(errorMessage);
+    } finally {
+      setProcessing(false);
     }
   };
 
   const handleAction = async () => {
-    if (!selectedOffer || !actionType) return;
+    if (!selectedOffer || !actionType) {
+      setError('Missing offer or action type');
+      return;
+    }
 
     if (actionType === 'decline' && !adminComments.trim()) {
-      alert('Please provide comments when declining an offer');
+      setError('Please provide comments when declining an offer');
       return;
     }
 
     try {
       setProcessing(true);
-      
+      setError('');
+
+      console.log(`Processing ${actionType} for offer:`, selectedOffer._id);
+
       const endpoint = `http://localhost:5555/api/admin/offers/${selectedOffer._id}/${actionType}`;
-      const response = await axios.patch(endpoint, {
+      const requestData = {
         adminComments: adminComments.trim(),
         reviewedBy: adminUser?.username || 'Admin'
-      });
+      };
 
-      if (response.data.success) {
-        alert(`Offer ${actionType}d successfully!`);
+      console.log('Sending request to:', endpoint);
+      console.log('Request data:', requestData);
+
+      const response = await axios.patch(endpoint, requestData);
+
+      console.log('Response received:', response.data);
+
+      if (response.data && response.data.success) {
+        console.log(`Offer ${actionType}d successfully`);
+        setSuccess(`Offer "${selectedOffer.title}" ${actionType}d successfully!`);
         closeModal();
-        fetchOffers();
+        await fetchOffers();
       } else {
-        alert(response.data.message || `Failed to ${actionType} offer`);
+        const errorMessage = response.data?.message || `Failed to ${actionType} offer`;
+        console.error(`${actionType} offer failed:`, errorMessage);
+        setError(errorMessage);
       }
     } catch (error) {
       console.error(`Error ${actionType}ing offer:`, error);
-      alert(error.response?.data?.message || `Error ${actionType}ing offer`);
+
+      let errorMessage;
+      if (error.response) {
+        errorMessage = error.response.data?.message || error.response.statusText || `Server error: ${error.response.status}`;
+        console.error('Server error response:', error.response.data);
+      } else if (error.request) {
+        errorMessage = 'No response from server. Please check your connection.';
+        console.error('No response received:', error.request);
+      } else {
+        errorMessage = error.message || `Error ${actionType}ing offer`;
+        console.error('Request setup error:', error.message);
+      }
+
+      setError(errorMessage);
     } finally {
       setProcessing(false);
     }
@@ -590,17 +759,22 @@ const AdminOffersManagement = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      'pending': { style: { ...styles.statusBadge, ...styles.statusPending }, text: 'Pending Review' },
-      'approved': { style: { ...styles.statusBadge, ...styles.statusApproved }, text: 'Approved' },
-      'approved-active': { style: { ...styles.statusBadge, ...styles.statusApproved }, text: 'Live' },
-      'approved-scheduled': { style: { ...styles.statusBadge, ...styles.statusApproved }, text: 'Scheduled' },
-      'approved-expired': { style: { ...styles.statusBadge, ...styles.statusDeclined }, text: 'Expired' },
-      'approved-inactive': { style: { ...styles.statusBadge, ...styles.statusPending }, text: 'Inactive' },
-      'declined': { style: { ...styles.statusBadge, ...styles.statusDeclined }, text: 'Declined' }
+      'pending': { style: { ...styles.statusBadge, ...styles.statusPending }, text: 'Pending Review', icon: '⏳' },
+      'approved': { style: { ...styles.statusBadge, ...styles.statusApproved }, text: 'Approved', icon: '✅' },
+      'approved-active': { style: { ...styles.statusBadge, ...styles.statusApproved }, text: 'Live', icon: '🔴' },
+      'approved-scheduled': { style: { ...styles.statusBadge, ...styles.statusApproved }, text: 'Scheduled', icon: '📅' },
+      'approved-expired': { style: { ...styles.statusBadge, ...styles.statusDeclined }, text: 'Expired', icon: '⏰' },
+      'approved-inactive': { style: { ...styles.statusBadge, ...styles.statusPending }, text: 'Inactive', icon: '⏸️' },
+      'declined': { style: { ...styles.statusBadge, ...styles.statusDeclined }, text: 'Declined', icon: '❌' }
     };
 
     const config = statusConfig[status] || statusConfig['pending'];
-    return <span style={config.style}>{config.text}</span>;
+    return (
+      <span style={config.style}>
+        <span>{config.icon}</span>
+        {config.text}
+      </span>
+    );
   };
 
   const formatDate = (dateString) => {
@@ -621,115 +795,145 @@ const AdminOffersManagement = () => {
 
   const getAvailableActions = (offer) => {
     const actions = [];
-    
+
     // Always allow edit and delete
     actions.push(
-      <button 
+      <button
         key="edit"
         style={styles.btnEdit}
         onClick={() => openEditModal(offer)}
         title="Edit offer details"
+        disabled={processing}
         onMouseOver={(e) => {
-          e.target.style.background = 'linear-gradient(135deg, #e0a800, #e8650e)';
-          e.target.style.transform = 'translateY(-2px)';
+          if (!processing) {
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 8px 25px rgba(245, 158, 11, 0.5)';
+          }
         }}
         onMouseOut={(e) => {
-          e.target.style.background = 'linear-gradient(135deg, #ffc107, #fd7e14)';
-          e.target.style.transform = 'translateY(0)';
+          if (!processing) {
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+          }
         }}
       >
-        Edit
+        📝 {processing ? 'Processing...' : 'Edit'}
       </button>,
-      <button 
+      <button
         key="delete"
         style={styles.btnDelete}
         onClick={() => handleDeleteOffer(offer._id)}
         title="Delete offer permanently"
+        disabled={processing}
         onMouseOver={(e) => {
-          e.target.style.background = 'linear-gradient(135deg, #545b62, #343a40)';
-          e.target.style.transform = 'translateY(-2px)';
+          if (!processing) {
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 8px 25px rgba(100, 116, 139, 0.5)';
+          }
         }}
         onMouseOut={(e) => {
-          e.target.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
-          e.target.style.transform = 'translateY(0)';
+          if (!processing) {
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 4px 12px rgba(100, 116, 139, 0.4)';
+          }
         }}
       >
-        Delete
+        🗑️ {processing ? 'Processing...' : 'Delete'}
       </button>
     );
 
     // Add approve/decline actions based on current status
     if (offer.adminStatus === 'pending') {
       actions.unshift(
-        <button 
+        <button
           key="approve"
           style={styles.btnApprove}
           onClick={() => openActionModal(offer, 'approve')}
           title="Approve this offer"
+          disabled={processing}
           onMouseOver={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #218838, #1ea37f)';
-            e.target.style.transform = 'translateY(-2px)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 8px 25px rgba(16, 185, 129, 0.5)';
+            }
           }}
           onMouseOut={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
-            e.target.style.transform = 'translateY(0)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+            }
           }}
         >
-          Approve
+          ✅ {processing ? 'Processing...' : 'Approve'}
         </button>,
-        <button 
+        <button
           key="decline"
           style={styles.btnDecline}
           onClick={() => openActionModal(offer, 'decline')}
           title="Decline this offer"
+          disabled={processing}
           onMouseOver={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #c82333, #d91a72)';
-            e.target.style.transform = 'translateY(-2px)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 8px 25px rgba(239, 68, 68, 0.5)';
+            }
           }}
           onMouseOut={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #dc3545, #e83e8c)';
-            e.target.style.transform = 'translateY(0)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+            }
           }}
         >
-          Decline
+          ❌ {processing ? 'Processing...' : 'Decline'}
         </button>
       );
     } else if (offer.adminStatus === 'approved') {
       actions.unshift(
-        <button 
+        <button
           key="decline"
           style={styles.btnDecline}
           onClick={() => openActionModal(offer, 'decline')}
           title="Decline this approved offer"
+          disabled={processing}
           onMouseOver={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #c82333, #d91a72)';
-            e.target.style.transform = 'translateY(-2px)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 8px 25px rgba(239, 68, 68, 0.5)';
+            }
           }}
           onMouseOut={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #dc3545, #e83e8c)';
-            e.target.style.transform = 'translateY(0)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+            }
           }}
         >
-          Decline
+          ❌ {processing ? 'Processing...' : 'Decline'}
         </button>
       );
     } else if (offer.adminStatus === 'declined') {
       actions.unshift(
-        <button 
+        <button
           key="approve"
           style={styles.btnApprove}
           onClick={() => openActionModal(offer, 'approve')}
           title="Approve this declined offer"
+          disabled={processing}
           onMouseOver={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #218838, #1ea37f)';
-            e.target.style.transform = 'translateY(-2px)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 8px 25px rgba(16, 185, 129, 0.5)';
+            }
           }}
           onMouseOut={(e) => {
-            e.target.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
-            e.target.style.transform = 'translateY(0)';
+            if (!processing) {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+            }
           }}
         >
-          Re-approve
+          ✅ {processing ? 'Processing...' : 'Re-approve'}
         </button>
       );
     }
@@ -759,23 +963,53 @@ const AdminOffersManagement = () => {
   return (
     <div style={styles.container}>
       <NavBar adminUser={adminUser} logoutAdmin={logoutAdmin} />
+      
+      <div style={styles.header}>
+        <div style={styles.headerOverlay}></div>
+        <div style={styles.headerContent}>
+          <h1 style={styles.headerTitle}>Admin Offers Management</h1>
+          <p style={styles.headerSubtitle}>Review, approve, edit, and manage all business offers</p>
+        </div>
+      </div>
 
-      {/* <div style={styles.header}>
-        <h1 style={styles.headerTitle}>Admin Offers Management</h1>
-        <p style={styles.headerSubtitle}>Review, approve, edit, and manage all offers</p>
-      </div> */}
+      {/* Statistics Dashboard */}
+      <div style={styles.statsContainer}>
+        <div style={styles.statCard}>
+          <div style={styles.statNumber}>{offers.length}</div>
+          <div style={styles.statLabel}>Total Offers</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={styles.statNumber}>{counts.pending || 0}</div>
+          <div style={styles.statLabel}>Pending Review</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={styles.statNumber}>{counts.approved || 0}</div>
+          <div style={styles.statLabel}>Approved</div>
+        </div>
+        <div style={styles.statCard}>
+          <div style={styles.statNumber}>{counts.declined || 0}</div>
+          <div style={styles.statLabel}>Declined</div>
+        </div>
+      </div>
 
       {error && (
-        <div style={styles.errorMessage}>
-          <span style={styles.errorIcon}>⚠️</span>
+        <div style={{...styles.alertContainer, ...styles.errorAlert}}>
+          <span style={styles.alertIcon}>⚠️</span>
           {error}
+        </div>
+      )}
+
+      {success && (
+        <div style={{...styles.alertContainer, ...styles.successAlert}}>
+          <span style={styles.alertIcon}>✅</span>
+          {success}
         </div>
       )}
 
       {/* Filter Tabs */}
       <div style={styles.filterTabs}>
         {['all', 'pending', 'approved', 'declined'].map((filterType) => (
-          <button 
+          <button
             key={filterType}
             style={{
               ...styles.filterTab,
@@ -784,19 +1018,21 @@ const AdminOffersManagement = () => {
             onClick={() => setFilter(filterType)}
             onMouseOver={(e) => {
               if (filter !== filterType) {
-                e.target.style.backgroundColor = '#e9ecef';
-                e.target.style.color = '#495057';
+                e.target.style.backgroundColor = '#f1f5f9';
+                e.target.style.color = '#334155';
+                e.target.style.transform = 'translateY(-1px)';
               }
             }}
             onMouseOut={(e) => {
               if (filter !== filterType) {
-                e.target.style.backgroundColor = '#f8f9fa';
-                e.target.style.color = '#6c757d';
+                e.target.style.backgroundColor = 'transparent';
+                e.target.style.color = '#64748b';
+                e.target.style.transform = 'translateY(0)';
               }
             }}
           >
-            {filterType === 'all' ? `All Offers (${offers.length})` : 
-             `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} (${counts[filterType] || 0})`}
+            {filterType === 'all' ? `All Offers (${offers.length})` :
+              `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} (${counts[filterType] || 0})`}
           </button>
         ))}
       </div>
@@ -823,10 +1059,13 @@ const AdminOffersManagement = () => {
               </div>
 
               <div style={styles.offerCardBody}>
-                <div style={styles.detailsGrid}>
-                  {/* Business Details */}
-                  <div style={styles.detailSection}>
-                    <h4 style={styles.sectionTitle}>Business Details</h4>
+                <div style={styles.sectionsContainer}>
+                  {/* Business Details Section */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionHeader}>
+                      <div style={{...styles.sectionIcon, ...styles.businessIcon}}>🏢</div>
+                      <h4 style={styles.sectionTitle}>Business Information</h4>
+                    </div>
                     <div style={styles.detailItem}>
                       <span style={styles.label}>Business Name:</span>
                       <span style={styles.value}>{offer.businessId?.name || 'N/A'}</span>
@@ -849,9 +1088,12 @@ const AdminOffersManagement = () => {
                     </div>
                   </div>
 
-                  {/* User Details */}
-                  <div style={styles.detailSection}>
-                    <h4 style={styles.sectionTitle}>User Details</h4>
+                  {/* User Details Section */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionHeader}>
+                      <div style={{...styles.sectionIcon, ...styles.userIcon}}>👤</div>
+                      <h4 style={styles.sectionTitle}>User Information</h4>
+                    </div>
                     <div style={styles.detailItem}>
                       <span style={styles.label}>User ID:</span>
                       <span style={styles.value}>#{offer.userDetails?.userId}</span>
@@ -876,9 +1118,12 @@ const AdminOffersManagement = () => {
                     </div>
                   </div>
 
-                  {/* Offer Details */}
-                  <div style={styles.detailSection}>
-                    <h4 style={styles.sectionTitle}>Offer Details</h4>
+                  {/* Offer Details Section */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionHeader}>
+                      <div style={{...styles.sectionIcon, ...styles.offerIcon}}>🎯</div>
+                      <h4 style={styles.sectionTitle}>Offer Details</h4>
+                    </div>
                     <div style={styles.detailItem}>
                       <span style={styles.label}>Offer ID:</span>
                       <span style={styles.value}>#{offer.offerId}</span>
@@ -897,34 +1142,37 @@ const AdminOffersManagement = () => {
                     </div>
                     <div style={{...styles.detailItem, ...styles.detailItemLast}}>
                       <span style={styles.label}>Active:</span>
-                      <span style={styles.value}>{offer.isActive ? 'Yes' : 'No'}</span>
+                      <span style={styles.value}>{offer.isActive ? '✅ Yes' : '❌ No'}</span>
                     </div>
                   </div>
+
+                  {/* Admin Review Section */}
+                  {(offer.adminStatus === 'approved' || offer.adminStatus === 'declined') && (
+                    <div style={styles.section}>
+                      <div style={styles.sectionHeader}>
+                        <div style={{...styles.sectionIcon, ...styles.reviewIcon}}>👨‍💼</div>
+                        <h4 style={styles.sectionTitle}>Admin Review</h4>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <span style={styles.label}>Reviewed by:</span>
+                        <span style={styles.value}>{offer.reviewedBy || 'N/A'}</span>
+                      </div>
+                      <div style={styles.detailItem}>
+                        <span style={styles.label}>Review Date:</span>
+                        <span style={styles.value}>{formatDate(offer.reviewedAt)}</span>
+                      </div>
+                      {offer.adminComments && (
+                        <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                          <span style={styles.label}>Comments:</span>
+                          <span style={{...styles.value, ...styles.adminComments}}>{offer.adminComments}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Admin Review Section */}
-                {(offer.adminStatus === 'approved' || offer.adminStatus === 'declined') && (
-                  <div style={styles.adminReviewSection}>
-                    <h4 style={styles.sectionTitle}>Admin Review</h4>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Reviewed by:</span>
-                      <span style={styles.value}>{offer.reviewedBy || 'N/A'}</span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Review Date:</span>
-                      <span style={styles.value}>{formatDate(offer.reviewedAt)}</span>
-                    </div>
-                    {offer.adminComments && (
-                      <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                        <span style={styles.label}>Comments:</span>
-                        <span style={{...styles.value, ...styles.adminComments}}>{offer.adminComments}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Enhanced Action Buttons */}
-                <div style={styles.offerActions}>
+                {/* Action Buttons */}
+                <div style={styles.actionsContainer}>
                   {getAvailableActions(offer)}
                 </div>
               </div>
@@ -941,68 +1189,75 @@ const AdminOffersManagement = () => {
           <div style={styles.modal}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>
-                {actionType === 'approve' ? 'Approve Offer' : 'Decline Offer'}
+                {actionType === 'approve' ? '✅ Approve Offer' : '❌ Decline Offer'}
               </h3>
-              <button 
+              <button
                 style={styles.modalClose}
                 onClick={closeModal}
                 onMouseOver={(e) => {
-                  e.target.style.backgroundColor = '#f8f9fa';
-                  e.target.style.color = '#495057';
+                  e.target.style.backgroundColor = '#f1f5f9';
+                  e.target.style.color = '#1e293b';
                 }}
                 onMouseOut={(e) => {
                   e.target.style.backgroundColor = 'transparent';
-                  e.target.style.color = '#6c757d';
+                  e.target.style.color = '#64748b';
                 }}
               >
                 ×
               </button>
             </div>
-            
+
             <div style={styles.modalBody}>
+              {error && (
+                <div style={{...styles.alertContainer, ...styles.errorAlert}}>
+                  <span style={styles.alertIcon}>⚠️</span>
+                  {error}
+                </div>
+              )}
+
               <div style={styles.offerSummary}>
-                <h4 style={{margin: '0 0 10px 0', color: '#007bff', fontSize: '1.2rem'}}>
+                <h4 style={{ margin: '0 0 1rem 0', color: '#0ea5e9', fontSize: '1.25rem', fontWeight: '700' }}>
                   "{selectedOffer?.title}"
                 </h4>
-                <p style={{margin: '5px 0', color: '#495057'}}>
-                  Business: {selectedOffer?.businessId?.name}
+                <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+                  <strong>Business:</strong> {selectedOffer?.businessId?.name}
                 </p>
-                <p style={{margin: '5px 0', color: '#495057'}}>
-                  Discount: {selectedOffer?.discount} OFF
+                <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+                  <strong>Discount:</strong> {selectedOffer?.discount} OFF
                 </p>
-                <p style={{margin: '5px 0', color: '#495057'}}>
-                  Current Status: <strong>{selectedOffer?.adminStatus}</strong>
+                <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+                  <strong>Current Status:</strong> <strong>{selectedOffer?.adminStatus}</strong>
                 </p>
               </div>
 
-              <div style={{marginBottom: '20px'}}>
-                <label 
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label
                   htmlFor="adminComments"
                   style={styles.formLabel}
                 >
-                  {actionType === 'approve' ? 'Comments (Optional)' : 'Comments (Required)'}
+                  {actionType === 'approve' ? 'Comments (Optional)' : 'Comments (Required) *'}
                 </label>
                 <textarea
                   id="adminComments"
                   value={adminComments}
                   onChange={(e) => setAdminComments(e.target.value)}
                   placeholder={
-                    actionType === 'approve' 
+                    actionType === 'approve'
                       ? "Add any approval comments or notes..."
                       : "Please explain why this offer is being declined..."
                   }
                   rows="4"
                   style={{
                     ...styles.textarea,
-                    ...(actionType === 'decline' && !adminComments.trim() ? 
-                        {borderColor: '#dc3545'} : {})
+                    ...(actionType === 'decline' && !adminComments.trim() ?
+                      { borderColor: '#dc2626' } : {})
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#007bff';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 123, 255, 0.1)';
+                    e.target.style.borderColor = '#667eea';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#e9ecef';
+                    e.target.style.borderColor = '#e2e8f0';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
@@ -1015,22 +1270,50 @@ const AdminOffersManagement = () => {
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
+              <button
                 style={styles.btnSecondary}
                 onClick={closeModal}
                 disabled={processing}
+                onMouseOver={(e) => {
+                  if (!processing) {
+                    e.target.style.transform = 'translateY(-1px)';
+                    e.target.style.boxShadow = '0 6px 20px rgba(148, 163, 184, 0.4)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!processing) {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(148, 163, 184, 0.4)';
+                  }
+                }}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 style={{
                   ...styles.btn,
                   ...(actionType === 'approve' ? styles.btnApprove : styles.btnDecline),
-                  ...(processing || (actionType === 'decline' && !adminComments.trim()) ? 
-                      {opacity: '0.6', cursor: 'not-allowed'} : {})
+                  ...(processing || (actionType === 'decline' && !adminComments.trim()) ?
+                    { opacity: '0.6', cursor: 'not-allowed' } : {})
                 }}
                 onClick={handleAction}
                 disabled={processing || (actionType === 'decline' && !adminComments.trim())}
+                onMouseOver={(e) => {
+                  if (!processing && !(actionType === 'decline' && !adminComments.trim())) {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = actionType === 'approve' 
+                      ? '0 8px 25px rgba(16, 185, 129, 0.5)'
+                      : '0 8px 25px rgba(239, 68, 68, 0.5)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!processing && !(actionType === 'decline' && !adminComments.trim())) {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = actionType === 'approve'
+                      ? '0 4px 12px rgba(16, 185, 129, 0.4)'
+                      : '0 4px 12px rgba(239, 68, 68, 0.4)';
+                  }
+                }}
               >
                 {processing ? (
                   <>
@@ -1038,7 +1321,7 @@ const AdminOffersManagement = () => {
                     Processing...
                   </>
                 ) : (
-                  `${actionType === 'approve' ? 'Approve' : 'Decline'} Offer`
+                  `${actionType === 'approve' ? '✅ Approve' : '❌ Decline'} Offer`
                 )}
               </button>
             </div>
@@ -1053,33 +1336,40 @@ const AdminOffersManagement = () => {
         }}>
           <div style={styles.modal}>
             <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>Edit Offer</h3>
-              <button 
+              <h3 style={styles.modalTitle}>📝 Edit Offer</h3>
+              <button
                 style={styles.modalClose}
                 onClick={closeEditModal}
                 onMouseOver={(e) => {
-                  e.target.style.backgroundColor = '#f8f9fa';
-                  e.target.style.color = '#495057';
+                  e.target.style.backgroundColor = '#f1f5f9';
+                  e.target.style.color = '#1e293b';
                 }}
                 onMouseOut={(e) => {
                   e.target.style.backgroundColor = 'transparent';
-                  e.target.style.color = '#6c757d';
+                  e.target.style.color = '#64748b';
                 }}
               >
                 ×
               </button>
             </div>
-            
+
             <div style={styles.modalBody}>
+              {error && (
+                <div style={{...styles.alertContainer, ...styles.errorAlert}}>
+                  <span style={styles.alertIcon}>⚠️</span>
+                  {error}
+                </div>
+              )}
+
               <div style={styles.offerSummary}>
-                <h4 style={{margin: '0 0 10px 0', color: '#007bff', fontSize: '1.2rem'}}>
+                <h4 style={{ margin: '0 0 1rem 0', color: '#0ea5e9', fontSize: '1.25rem', fontWeight: '700' }}>
                   Editing: "{selectedOffer?.title}"
                 </h4>
-                <p style={{margin: '5px 0', color: '#495057'}}>
-                  Business: {selectedOffer?.businessId?.name}
+                <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+                  <strong>Business:</strong> {selectedOffer?.businessId?.name}
                 </p>
-                <p style={{margin: '5px 0', color: '#495057'}}>
-                  Current Status: <strong>{selectedOffer?.adminStatus}</strong>
+                <p style={{ margin: '0.5rem 0', color: '#475569' }}>
+                  <strong>Current Status:</strong> <strong>{selectedOffer?.adminStatus}</strong>
                 </p>
               </div>
 
@@ -1088,16 +1378,16 @@ const AdminOffersManagement = () => {
                 <input
                   type="text"
                   value={editOfferData.title}
-                  onChange={(e) => setEditOfferData({...editOfferData, title: e.target.value})}
+                  onChange={(e) => setEditOfferData({ ...editOfferData, title: e.target.value })}
                   placeholder="Enter offer title"
                   style={styles.input}
                   required
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#007bff';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 123, 255, 0.1)';
+                    e.target.style.borderColor = '#667eea';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#e9ecef';
+                    e.target.style.borderColor = '#e2e8f0';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
@@ -1108,16 +1398,16 @@ const AdminOffersManagement = () => {
                 <input
                   type="text"
                   value={editOfferData.discount}
-                  onChange={(e) => setEditOfferData({...editOfferData, discount: e.target.value})}
+                  onChange={(e) => setEditOfferData({ ...editOfferData, discount: e.target.value })}
                   placeholder="e.g., 20%, $50, Buy 1 Get 1"
                   style={styles.input}
                   required
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#007bff';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 123, 255, 0.1)';
+                    e.target.style.borderColor = '#667eea';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#e9ecef';
+                    e.target.style.borderColor = '#e2e8f0';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
@@ -1128,15 +1418,15 @@ const AdminOffersManagement = () => {
                 <input
                   type="text"
                   value={editOfferData.category}
-                  onChange={(e) => setEditOfferData({...editOfferData, category: e.target.value})}
+                  onChange={(e) => setEditOfferData({ ...editOfferData, category: e.target.value })}
                   placeholder="Enter category (optional)"
                   style={styles.input}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#007bff';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 123, 255, 0.1)';
+                    e.target.style.borderColor = '#667eea';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#e9ecef';
+                    e.target.style.borderColor = '#e2e8f0';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
@@ -1147,14 +1437,14 @@ const AdminOffersManagement = () => {
                 <input
                   type="date"
                   value={editOfferData.startDate}
-                  onChange={(e) => setEditOfferData({...editOfferData, startDate: e.target.value})}
+                  onChange={(e) => setEditOfferData({ ...editOfferData, startDate: e.target.value })}
                   style={styles.input}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#007bff';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 123, 255, 0.1)';
+                    e.target.style.borderColor = '#667eea';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#e9ecef';
+                    e.target.style.borderColor = '#e2e8f0';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
@@ -1165,48 +1455,72 @@ const AdminOffersManagement = () => {
                 <input
                   type="date"
                   value={editOfferData.endDate}
-                  onChange={(e) => setEditOfferData({...editOfferData, endDate: e.target.value})}
+                  onChange={(e) => setEditOfferData({ ...editOfferData, endDate: e.target.value })}
                   style={styles.input}
                   onFocus={(e) => {
-                    e.target.style.borderColor = '#007bff';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 123, 255, 0.1)';
+                    e.target.style.borderColor = '#667eea';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = '#e9ecef';
+                    e.target.style.borderColor = '#e2e8f0';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
               </div>
 
               <div style={styles.formGroup}>
-                <label style={{...styles.formLabel, display: 'flex', alignItems: 'center', gap: '10px'}}>
+                <label style={{ ...styles.formLabel, display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <input
                     type="checkbox"
                     checked={editOfferData.isActive}
-                    onChange={(e) => setEditOfferData({...editOfferData, isActive: e.target.checked})}
-                    style={{width: 'auto'}}
+                    onChange={(e) => setEditOfferData({ ...editOfferData, isActive: e.target.checked })}
+                    style={{ width: 'auto' }}
                   />
-                  Active Offer
+                  ✅ Active Offer
                 </label>
               </div>
             </div>
 
             <div style={styles.modalFooter}>
-              <button 
+              <button
                 style={styles.btnSecondary}
                 onClick={closeEditModal}
                 disabled={processing}
+                onMouseOver={(e) => {
+                  if (!processing) {
+                    e.target.style.transform = 'translateY(-1px)';
+                    e.target.style.boxShadow = '0 6px 20px rgba(148, 163, 184, 0.4)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!processing) {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(148, 163, 184, 0.4)';
+                  }
+                }}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 style={{
                   ...styles.btnEdit,
-                  ...(processing || !editOfferData.title || !editOfferData.discount ? 
-                      {opacity: '0.6', cursor: 'not-allowed'} : {})
+                  ...(processing || !editOfferData.title || !editOfferData.discount ?
+                    { opacity: '0.6', cursor: 'not-allowed' } : {})
                 }}
                 onClick={handleEditOffer}
                 disabled={processing || !editOfferData.title || !editOfferData.discount}
+                onMouseOver={(e) => {
+                  if (!processing && editOfferData.title && editOfferData.discount) {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 8px 25px rgba(245, 158, 11, 0.5)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!processing && editOfferData.title && editOfferData.discount) {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+                  }
+                }}
               >
                 {processing ? (
                   <>
@@ -1214,7 +1528,7 @@ const AdminOffersManagement = () => {
                     Updating...
                   </>
                 ) : (
-                  'Update Offer'
+                  '📝 Update Offer'
                 )}
               </button>
             </div>
@@ -1222,7 +1536,7 @@ const AdminOffersManagement = () => {
         </div>
       )}
 
-      {/* CSS Animations */}
+      {/* CSS Animations and Responsive Styles */}
       <style>
         {`
           @keyframes spin {
@@ -1241,38 +1555,81 @@ const AdminOffersManagement = () => {
             }
           }
 
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .offer-card {
+            animation: fadeIn 0.3s ease-out;
+          }
+
+          /* Scrollbar Styling */
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+
+          ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+          }
+
+          ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 4px;
+          }
+
+          ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #5a6fd8, #6c42a0);
+          }
+
           /* Mobile responsive styles */
           @media (max-width: 768px) {
-            .offer-card:hover {
-              transform: none !important;
+            .container {
+              padding: 1rem !important;
+            }
+            
+            .stats-container {
+              grid-template-columns: repeat(2, 1fr) !important;
+              gap: 1rem !important;
+            }
+            
+            .sections-container {
+              grid-template-columns: 1fr !important;
+              gap: 1rem !important;
             }
             
             .filter-tabs {
               overflow-x: auto;
               -webkit-overflow-scrolling: touch;
+              scrollbar-width: none;
+              -ms-overflow-style: none;
             }
             
             .filter-tabs::-webkit-scrollbar {
               display: none;
             }
             
-            .details-grid {
-              grid-template-columns: 1fr !important;
-            }
-            
             .detail-item {
               flex-direction: column !important;
               align-items: flex-start !important;
+              gap: 0.5rem;
             }
             
             .value {
               text-align: left !important;
               margin-left: 0 !important;
-              margin-top: 5px;
             }
             
-            .offer-actions {
+            .actions-container {
               flex-direction: column !important;
+              gap: 0.75rem !important;
             }
             
             .btn {
@@ -1280,36 +1637,174 @@ const AdminOffersManagement = () => {
               min-width: auto !important;
             }
             
+            .modal {
+              width: 95% !important;
+              margin: 1rem !important;
+            }
+            
             .modal-footer {
               flex-direction: column !important;
+              gap: 0.75rem !important;
+            }
+            
+            .header-title {
+              font-size: 2rem !important;
+            }
+            
+            .header-subtitle {
+              font-size: 1rem !important;
             }
           }
 
           @media (max-width: 480px) {
+            .stats-container {
+              grid-template-columns: 1fr !important;
+            }
+            
             .filter-tab {
-              min-width: 120px !important;
+              min-width: 100px !important;
+              padding: 0.5rem 1rem !important;
+            }
+            
+            .offer-card-header {
+              flex-direction: column !important;
+              align-items: flex-start !important;
+            }
+            
+            .offer-title-section {
+              min-width: 100% !important;
+              margin-bottom: 1rem;
             }
           }
 
-          /* Hover effects for desktop */
+          /* Hover effects for desktop only */
           @media (min-width: 769px) {
             .offer-card:hover {
+              transform: translateY(-4px) !important;
+              box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15) !important;
+            }
+            
+            .stat-card:hover {
               transform: translateY(-2px) !important;
-              box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+              box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
             }
           }
 
           /* Focus styles for accessibility */
           .btn:focus,
           .filter-tab:focus,
-          .modal-close:focus {
-            outline: 2px solid #007bff !important;
+          .modal-close:focus,
+          .input:focus,
+          .textarea:focus {
+            outline: 2px solid #667eea !important;
             outline-offset: 2px !important;
           }
 
-          /* Smooth scrolling */
-          .offers-list {
-            scroll-behavior: smooth;
+          /* Loading animation */
+          .loading-shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+          }
+
+          @keyframes shimmer {
+            0% {
+              background-position: -200% 0;
+            }
+            100% {
+              background-position: 200% 0;
+            }
+          }
+
+          /* Smooth transitions */
+          * {
+            transition: all 0.3s ease;
+          }
+
+          /* Button ripple effect */
+          .btn {
+            position: relative;
+            overflow: hidden;
+          }
+
+          .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s;
+          }
+
+          .btn:active::before {
+            width: 300px;
+            height: 300px;
+          }
+
+          /* Enhanced gradient animations */
+          @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+
+          .header {
+            background-size: 200% 200%;
+            animation: gradientShift 6s ease infinite;
+          }
+
+          /* Card entrance animations */
+          .offer-card {
+            animation: slideInUp 0.6s ease-out;
+            animation-fill-mode: both;
+          }
+
+          .offer-card:nth-child(1) { animation-delay: 0.1s; }
+          .offer-card:nth-child(2) { animation-delay: 0.2s; }
+          .offer-card:nth-child(3) { animation-delay: 0.3s; }
+          .offer-card:nth-child(4) { animation-delay: 0.4s; }
+          .offer-card:nth-child(5) { animation-delay: 0.5s; }
+
+          @keyframes slideInUp {
+            from {
+              opacity: 0;
+              transform: translateY(30px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          /* Enhanced modal animations */
+          .modal {
+            animation: modalSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+          }
+
+          @keyframes modalSlideIn {
+            from {
+              opacity: 0;
+              transform: scale(0.7) translateY(-50px);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
+          }
+
+          /* Status badge pulse for pending */
+          .status-pending {
+            animation: pulse 2s infinite;
+          }
+
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
           }
         `}
       </style>

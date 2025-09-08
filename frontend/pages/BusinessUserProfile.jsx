@@ -80,7 +80,7 @@ const BusinessUserProfile = () => {
           canEdit: true,
           canToggle: false
         };
-      
+
       case 'declined':
         return {
           status: 'Declined',
@@ -92,7 +92,7 @@ const BusinessUserProfile = () => {
           canEdit: true,
           canToggle: false
         };
-      
+
       case 'approved':
         // For approved offers, check time-based status
         if (startDate && startDate > now) {
@@ -140,7 +140,7 @@ const BusinessUserProfile = () => {
             canToggle: true
           };
         }
-      
+
       default:
         return {
           status: 'Unknown',
@@ -188,9 +188,9 @@ const BusinessUserProfile = () => {
       transition: all 0.3s ease;
     `;
     toast.textContent = message;
-    
+
     document.body.appendChild(toast);
-    
+
     setTimeout(() => {
       if (toast.parentNode) {
         toast.style.opacity = '0';
@@ -303,6 +303,12 @@ const BusinessUserProfile = () => {
     try {
       const response = await axios.get(`http://localhost:5555/api/offers/user/${userId}`);
       if (response.data.success) {
+        console.log('Debugging offers data from server:', response.data.offers.map(o => ({
+          id: o._id,
+          title: o.title,
+          businessId: o.businessId,
+          businessName: o.businessId?.name || 'No name populated'
+        })));
         setOffers(response.data.offers);
       }
     } catch (error) {
@@ -458,17 +464,17 @@ const BusinessUserProfile = () => {
         // EDITING EXISTING OFFER
         const response = await axios.put(
           `http://localhost:5555/api/offers/${editingOffer._id}`,
-          { 
-            ...offerForm, 
+          {
+            ...offerForm,
             userId: userDetails.userId,
             // Add flag to indicate this is an edit that needs re-approval
             requiresReapproval: true
           }
         );
-        
+
         if (response.data.success) {
           await fetchOffers(userDetails.userId);
-          
+
           // Show different messages based on status reset
           if (response.data.statusReset) {
             showToastNotification('Offer updated successfully! It will need admin re-approval before going live again.', 'info');
@@ -501,7 +507,7 @@ const BusinessUserProfile = () => {
           await fetchOffers(userDetails.userId);
         }
       }
-      
+
       setShowOfferModal(false);
       setEditingOffer(null);
       setOfferForm({
@@ -671,13 +677,13 @@ const BusinessUserProfile = () => {
               </span>
             )}
             {summary.declined > 0 && (
-              <span style={{color: '#dc3545'}}>
+              <span style={{ color: '#dc3545' }}>
                 {summary.declined} offer{summary.declined > 1 ? 's' : ''} declined
               </span>
             )}
           </div>
         </div>
-        <button 
+        <button
           style={styles.bannerClose}
           onClick={() => setShowNotificationBanner(false)}
         >
@@ -698,6 +704,16 @@ const BusinessUserProfile = () => {
 
   const subscriptionStatus = getSubscriptionStatusDisplay();
   const summary = getOffersSummary();
+
+  // Debugging data before render
+  console.log('Debugging before render:');
+  console.log('Businesses array:', businesses.map(b => ({ id: b._id, name: b.name })));
+  console.log('Offers array:', offers.map(o => ({
+    id: o._id,
+    title: o.title,
+    businessId: o.businessId,
+    businessPopulated: typeof o.businessId === 'object' ? o.businessId : null
+  })));
 
   return (
     <div style={styles.container}>
@@ -936,11 +952,11 @@ const BusinessUserProfile = () => {
                   </div>
                 </div>
                 <p style={styles.limitText}>{getLimitMessage('offer')}</p>
-                
+
                 {/* Show notification banner */}
                 <OfferNotificationBanner />
               </div>
-              
+
               <button
                 style={subscriptionUtils.canAddOffer(offers.length, subscription) ? styles.addButton : styles.disabledButton}
                 onClick={() => {
@@ -981,7 +997,21 @@ const BusinessUserProfile = () => {
               <div style={styles.offersGrid}>
                 {offers.map((offer) => {
                   const statusInfo = getOfferStatusDisplay(offer);
-                  const business = businesses.find(b => b._id === offer.businessId);
+
+                  // FIXED: Multiple ways to get business name
+                  let businessName = 'Business not found';
+
+                  // Method 1: If server populated the business data (recommended)
+                  if (offer.businessId && typeof offer.businessId === 'object' && offer.businessId.name) {
+                    businessName = offer.businessId.name;
+                  }
+                  // Method 2: Search in local businesses array as fallback
+                  else {
+                    const business = businesses.find(b => b._id.toString() === (offer.businessId._id || offer.businessId).toString());
+                    if (business) {
+                      businessName = business.name;
+                    }
+                  }
 
                   return (
                     <div key={offer._id} style={styles.offerCard}>
@@ -1004,28 +1034,35 @@ const BusinessUserProfile = () => {
                           {statusInfo.status}
                         </div>
                       </div>
-                      
+
                       <div style={styles.offerContent}>
                         <p style={styles.discount}>{offer.discount} OFF</p>
-                        <p><strong>Business:</strong> {business?.name || 'Unknown'}</p>
+                        {/* FIXED: Display business name with better debugging */}
+                        <p><strong>Business:</strong> {businessName}</p>
+                        {/* Show debug info in development */}
+                        {process.env.NODE_ENV === 'development' && (
+                          <p style={{ fontSize: '0.7rem', color: '#6c757d', fontStyle: 'italic' }}>
+                            Debug: BusinessId = {typeof offer.businessId === 'object' ? offer.businessId._id : offer.businessId}
+                          </p>
+                        )}
                         <p><strong>Category:</strong> {offer.category}</p>
-                        
+
                         {offer.startDate && (
                           <p><strong>Start Date:</strong> {new Date(offer.startDate).toLocaleDateString()}</p>
                         )}
                         {offer.endDate && (
                           <p><strong>End Date:</strong> {new Date(offer.endDate).toLocaleDateString()}</p>
                         )}
-                        
+
                         {/* Admin review information */}
                         {offer.reviewedBy && offer.reviewedAt && (
                           <div style={styles.reviewInfo}>
-                            <p style={{fontSize: '0.85rem', color: '#6c757d', margin: '8px 0 4px 0'}}>
+                            <p style={{ fontSize: '0.85rem', color: '#6c757d', margin: '8px 0 4px 0' }}>
                               <strong>Reviewed by:</strong> {offer.reviewedBy} on {new Date(offer.reviewedAt).toLocaleDateString()}
                             </p>
                           </div>
                         )}
-                        
+
                         {/* Status message */}
                         <div style={{
                           ...styles.statusMessage,
@@ -1039,20 +1076,20 @@ const BusinessUserProfile = () => {
                         }}>
                           {statusInfo.message}
                         </div>
-                        
+
                         {/* Admin comments for declined offers */}
                         {offer.adminStatus === 'declined' && offer.adminComments && (
                           <div style={styles.adminComments}>
-                            <p style={{fontSize: '0.85rem', fontWeight: 'bold', margin: '8px 0 4px 0', color: '#dc3545'}}>
+                            <p style={{ fontSize: '0.85rem', fontWeight: 'bold', margin: '8px 0 4px 0', color: '#dc3545' }}>
                               Reason for decline:
                             </p>
-                            <p style={{fontSize: '0.85rem', color: '#721c24', fontStyle: 'italic', margin: '0'}}>
+                            <p style={{ fontSize: '0.85rem', color: '#721c24', fontStyle: 'italic', margin: '0' }}>
                               "{offer.adminComments}"
                             </p>
                           </div>
                         )}
                       </div>
-                      
+
                       <div style={styles.offerActions}>
                         {/* Only show edit button for pending or declined offers */}
                         {statusInfo.canEdit && (
@@ -1060,8 +1097,10 @@ const BusinessUserProfile = () => {
                             style={styles.editBtn}
                             onClick={() => {
                               setEditingOffer(offer);
+                              // FIXED: Handle both populated and non-populated businessId
+                              const businessId = typeof offer.businessId === 'object' ? offer.businessId._id : offer.businessId;
                               setOfferForm({
-                                businessId: offer.businessId,
+                                businessId: businessId,
                                 title: offer.title,
                                 discount: offer.discount,
                                 startDate: offer.startDate ? offer.startDate.split('T')[0] : '',
@@ -1075,7 +1114,7 @@ const BusinessUserProfile = () => {
                             Edit
                           </button>
                         )}
-                        
+
                         {/* Only show toggle button for approved offers */}
                         {statusInfo.canToggle && (
                           <button
@@ -1085,7 +1124,7 @@ const BusinessUserProfile = () => {
                             {offer.isActive ? 'Deactivate' : 'Activate'}
                           </button>
                         )}
-                        
+
                         {/* Always show delete button */}
                         <button
                           style={styles.deleteBtn}
@@ -1200,7 +1239,7 @@ const BusinessUserProfile = () => {
       {showBusinessModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            <h3 style={{fontSize:'40px',textAlign:'center',color:'#0063B4'}}>{editingBusiness ? 'Edit Business' : 'Add New Business'}</h3>
+            <h3 style={{ fontSize: '40px', textAlign: 'center', color: '#0063B4' }}>{editingBusiness ? 'Edit Business' : 'Add New Business'}</h3>
             <div style={styles.modalForm}>
               {Object.entries({
                 'Business Name*': 'name',
@@ -1212,7 +1251,7 @@ const BusinessUserProfile = () => {
                 'Website': 'website',
                 'Operating Hours': 'operatingHours',
                 'Social Media Links': 'socialMediaLinks',
-                
+
               }).map(([label, field]) => (
                 <div key={field} style={styles.formGroup}>
                   <label>{label}</label>
@@ -1283,7 +1322,7 @@ const BusinessUserProfile = () => {
       {showOfferModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            <h3 style={{fontSize:'40px',textAlign:'center',color:'#0063B4'}}>{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
+            <h3 style={{ fontSize: '40px', textAlign: 'center', color: '#0063B4' }}>{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h3>
             <div style={styles.modalForm}>
               <div style={styles.formGroup}>
                 <label>Select Business</label>

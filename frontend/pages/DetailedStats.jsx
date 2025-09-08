@@ -6,8 +6,8 @@ import NavBar from "../component/Navbar";
 
 const DetailedStats = () => {
   const navigate = useNavigate();
-  const { adminUser, isLoading, refreshSession,logoutAdmin } = useContext(AdminAuthContext);
-  
+  const { adminUser, isLoading, refreshSession, logoutAdmin } = useContext(AdminAuthContext);
+
   const [users, setUsers] = useState([]);
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +22,7 @@ const DetailedStats = () => {
   // Authentication check effect
   useEffect(() => {
     console.log('Auth check effect running:', { isLoading, adminUser: !!adminUser });
-    
+
     // Wait for context to finish loading
     if (isLoading) {
       console.log('Still loading auth context...');
@@ -46,7 +46,7 @@ const DetailedStats = () => {
   // Data fetching effect
   useEffect(() => {
     console.log('Data fetch effect running:', { isLoading, adminUser: !!adminUser });
-    
+
     // Only fetch data when we have a confirmed admin user and auth loading is complete
     if (!isLoading && adminUser) {
       console.log('Fetching data...');
@@ -78,10 +78,10 @@ const DetailedStats = () => {
   // Filter users based on date range
   const getFilteredUsers = () => {
     if (dateRange === "all") return users;
-    
+
     const now = new Date();
     const filterDate = new Date();
-    
+
     switch (dateRange) {
       case "today":
         filterDate.setHours(0, 0, 0, 0);
@@ -98,7 +98,7 @@ const DetailedStats = () => {
       default:
         return users;
     }
-    
+
     return users.filter(user => {
       if (!user.createdAt) return false;
       return new Date(user.createdAt) >= filterDate;
@@ -110,12 +110,12 @@ const DetailedStats = () => {
   const approvedUsers = filteredUsers.filter(u => u.status === "approved");
   const pendingUsers = filteredUsers.filter(u => (u.status || "pending") === "pending");
   const declinedUsers = filteredUsers.filter(u => u.status === "declined");
-  
+
   // User type statistics
   const individualUsers = filteredUsers.filter(u => u.userType === "Individual");
   const companyUsers = filteredUsers.filter(u => u.userType === "Company");
   const agencyUsers = filteredUsers.filter(u => u.userType === "Agency");
-  
+
   // Registration trends (last 7 days)
   const getRegistrationTrend = () => {
     const last7Days = [];
@@ -123,16 +123,16 @@ const DetailedStats = () => {
       const date = new Date();
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
-      
+
       const nextDate = new Date(date);
       nextDate.setDate(nextDate.getDate() + 1);
-      
+
       const count = users.filter(user => {
         if (!user.createdAt) return false;
         const userDate = new Date(user.createdAt);
         return userDate >= date && userDate < nextDate;
       }).length;
-      
+
       last7Days.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         count
@@ -457,10 +457,10 @@ const DetailedStats = () => {
         `}
       </style>
 
-      
- <NavBar adminUser={adminUser} logoutAdmin={logoutAdmin} />
 
- 
+      <NavBar adminUser={adminUser} logoutAdmin={logoutAdmin} />
+
+
       {/* Header */}
       <div style={styles.header}>
         <h1 style={styles.title}>📊 Detailed Statistics</h1>

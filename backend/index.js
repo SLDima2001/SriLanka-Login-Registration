@@ -717,14 +717,14 @@ app.post('/api/user/check-subscription', async (req, res) => {
 
     // If subscription exists, determine the type
     const now = new Date();
-    
+
     // Check if it's an active premium subscription
     const isActivePremium = subscription.planId === '2' &&
       subscription.status === 'active' &&
       (!subscription.endDate || new Date(subscription.endDate) > now);
 
     // Check if it's an active free subscription
-    const isActiveFree = subscription.planId === '1' && 
+    const isActiveFree = subscription.planId === '1' &&
       subscription.status === 'active';
 
     console.log('📊 Subscription analysis:', {
@@ -816,9 +816,9 @@ app.post('/api/user/check-subscription', async (req, res) => {
 app.get('/api/debug/user-subscription/:email', async (req, res) => {
   try {
     const { email } = req.params;
-    
+
     console.log('🔍 DEBUG: Checking user and subscriptions for:', email);
-    
+
     // Find user
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     console.log('User found:', user ? {
@@ -827,7 +827,7 @@ app.get('/api/debug/user-subscription/:email', async (req, res) => {
       firstName: user.firstName,
       createdAt: user.createdAt
     } : 'NOT FOUND');
-    
+
     // Find ALL subscriptions for this email/userId
     const subscriptionsAll = await Subscription.find({
       $or: [
@@ -835,7 +835,7 @@ app.get('/api/debug/user-subscription/:email', async (req, res) => {
         { userId: user?.userId }
       ]
     }).sort({ createdAt: -1 });
-    
+
     console.log('All subscriptions found:', subscriptionsAll.length);
     subscriptionsAll.forEach((sub, index) => {
       console.log(`Subscription ${index + 1}:`, {
@@ -849,7 +849,7 @@ app.get('/api/debug/user-subscription/:email', async (req, res) => {
         createdAt: sub.createdAt
       });
     });
-    
+
     res.json({
       success: true,
       debug: {
@@ -874,7 +874,7 @@ app.get('/api/debug/user-subscription/:email', async (req, res) => {
         }))
       }
     });
-    
+
   } catch (error) {
     console.error('Debug error:', error);
     res.status(500).json({
@@ -888,19 +888,19 @@ app.get('/api/debug/user-subscription/:email', async (req, res) => {
 app.delete('/api/debug/clean-user-subscriptions/:email', async (req, res) => {
   try {
     const { email } = req.params;
-    
+
     console.log('🧹 CLEANUP: Removing all subscriptions for:', email);
-    
+
     // Find user first
     const user = await User.findOne({ email: email.toLowerCase().trim() });
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
-    
+
     // Delete ALL subscriptions for this user
     const deleteResult = await Subscription.deleteMany({
       $or: [
@@ -908,15 +908,15 @@ app.delete('/api/debug/clean-user-subscriptions/:email', async (req, res) => {
         { userId: user.userId }
       ]
     });
-    
+
     console.log('✅ Deleted subscriptions:', deleteResult.deletedCount);
-    
+
     res.json({
       success: true,
       message: `Deleted ${deleteResult.deletedCount} subscription(s) for user ${email}`,
       deletedCount: deleteResult.deletedCount
     });
-    
+
   } catch (error) {
     console.error('Cleanup error:', error);
     res.status(500).json({
@@ -1143,7 +1143,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // ✅ CRITICAL FIX: Check subscription status to determine redirect
     console.log('🔍 Checking subscription status for redirect...');
-    
+
     // Find subscription for this user
     const subscription = await Subscription.findOne({
       $or: [
@@ -1157,14 +1157,14 @@ app.post('/api/auth/login', async (req, res) => {
 
     if (subscription) {
       const now = new Date();
-      
+
       // Check if it's an active premium subscription
       const isActivePremium = subscription.planId === '2' &&
         subscription.status === 'active' &&
         (!subscription.endDate || new Date(subscription.endDate) > now);
 
       // Check if it's an active free subscription
-      const isActiveFree = subscription.planId === '1' && 
+      const isActiveFree = subscription.planId === '1' &&
         subscription.status === 'active';
 
       if (isActivePremium) {
@@ -2283,13 +2283,13 @@ app.get('/api/businesses/user/:userId', async (req, res) => {
 
 app.post('/api/businesses', async (req, res) => {
   try {
-    const { 
-      userId, 
-      name, 
-      address, 
-      phone, 
-      email, 
-      website, 
+    const {
+      userId,
+      name,
+      address,
+      phone,
+      email,
+      website,
       category,
       socialMediaLinks,
       operatingHours,
@@ -2548,9 +2548,9 @@ app.get('/api/user/:userId/usage-limits', async (req, res) => {
     const maxOffers = isPremium ? 3 : 1;
 
     const currentBusinesses = await Business.countDocuments({ userId: parseInt(userId) });
-    
+
     // Count APPROVED offers only
-    const currentApprovedOffers = await Offer.countDocuments({ 
+    const currentApprovedOffers = await Offer.countDocuments({
       userId: parseInt(userId),
       adminStatus: 'approved',
       isActive: true
@@ -2615,7 +2615,7 @@ app.get('/api/user/:userId/usage-limits', async (req, res) => {
 app.post('/api/offers', async (req, res) => {
   try {
     const { userId, businessId, title, discount, category, startDate, endDate, isActive } = req.body;
-    
+
     if (!userId || !businessId || !title || !discount) {
       return res.status(400).json({
         success: false,
@@ -2662,7 +2662,7 @@ app.post('/api/offers', async (req, res) => {
     }
 
     // Count existing APPROVED offers for this user (changed from active to approved)
-    const existingOffersCount = await Offer.countDocuments({ 
+    const existingOffersCount = await Offer.countDocuments({
       userId: userId,
       adminStatus: 'approved',
       isActive: true
@@ -2677,7 +2677,7 @@ app.post('/api/offers', async (req, res) => {
       (!activeSubscription.endDate || new Date(activeSubscription.endDate) > now);
 
     // Set offer limits based on subscription type
-    const maxOffers = isPremium ? 3 : 1;
+    const maxOffers = isPremium ? 9 : 3;
     const planType = isPremium ? 'Premium' : 'Free';
 
     console.log(`📋 Plan analysis: ${planType} plan allows ${maxOffers} approved offers`);
@@ -2700,7 +2700,7 @@ app.post('/api/offers', async (req, res) => {
     if (startDate && endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
-      
+
       if (start >= end) {
         return res.status(400).json({
           success: false,
@@ -2724,12 +2724,12 @@ app.post('/api/offers', async (req, res) => {
     });
 
     await offer.save();
-    
+
     // Populate business info before returning
     await offer.populate('businessId', 'name');
-    
+
     console.log(`✅ Offer created and submitted for approval: ${offer.title} (ID: ${offer.offerId})`);
-    
+
     res.json({
       success: true,
       message: `Offer submitted successfully and is pending admin approval. You'll be notified once it's reviewed.`,
@@ -2756,13 +2756,15 @@ app.post('/api/offers', async (req, res) => {
 app.get('/api/admin/offers', async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
-    
+
     let filter = {};
     if (status && ['pending', 'approved', 'declined'].includes(status)) {
       filter.adminStatus = status;
     }
 
-    // Get offers with business details (this works fine as businessId is ObjectId)
+    console.log(`📋 Fetching admin offers with filter:`, filter);
+
+    // Get offers with business details
     const offers = await Offer.find(filter)
       .populate('businessId', 'name category address phone email website')
       .sort({ createdAt: -1 })
@@ -2771,19 +2773,19 @@ app.get('/api/admin/offers', async (req, res) => {
 
     const totalOffers = await Offer.countDocuments(filter);
 
-    // Manually fetch user details since userId is a Number field
+    // FIXED: Manually fetch user details using userId Number field
     const offersWithUserDetails = await Promise.all(offers.map(async (offer) => {
       try {
         // Find user by userId (Number field, not ObjectId)
         const user = await User.findOne({ userId: offer.userId }).select('firstName lastName email businessName userType');
-        
+
         // Add computed status based on dates and admin approval
         const now = new Date();
         const startDate = offer.startDate ? new Date(offer.startDate) : null;
         const endDate = offer.endDate ? new Date(offer.endDate) : null;
 
         let computedStatus = offer.adminStatus;
-        
+
         if (offer.adminStatus === 'approved') {
           if (startDate && startDate > now) {
             computedStatus = 'approved-scheduled';
@@ -2832,6 +2834,8 @@ app.get('/api/admin/offers', async (req, res) => {
       }
     }));
 
+    console.log(`✅ Fetched ${offersWithUserDetails.length} offers for admin`);
+
     res.json({
       success: true,
       offers: offersWithUserDetails,
@@ -2848,7 +2852,7 @@ app.get('/api/admin/offers', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching admin offers:', error);
+    console.error('❌ Error fetching admin offers:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch offers for admin review',
@@ -2863,6 +2867,8 @@ app.patch('/api/admin/offers/:id/approve', async (req, res) => {
     const { id } = req.params;
     const { adminComments, reviewedBy } = req.body;
 
+    console.log(`🔄 Approving offer ${id} by ${reviewedBy || 'Admin'}`);
+
     const offer = await Offer.findByIdAndUpdate(
       id,
       {
@@ -2873,10 +2879,10 @@ app.patch('/api/admin/offers/:id/approve', async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
-    ).populate('businessId', 'name')
-     .populate('userId', 'firstName lastName email');
+    ).populate('businessId', 'name');
 
     if (!offer) {
+      console.log(`❌ Offer not found: ${id}`);
       return res.status(404).json({
         success: false,
         message: 'Offer not found'
@@ -2885,11 +2891,24 @@ app.patch('/api/admin/offers/:id/approve', async (req, res) => {
 
     console.log(`✅ Offer approved: ${offer.title} by ${reviewedBy || 'Admin'}`);
 
+    // FIXED: Find user by userId Number field, not ObjectId
+    const user = await User.findOne({ userId: offer.userId });
+
     // Send approval notification email
-    if (offer.userId && offer.userId.email) {
-      sendOfferApprovalNotification(offer, 'approved').catch(error => {
-        console.error('Failed to send approval notification:', error);
-      });
+    if (user && user.email) {
+      try {
+        await sendOfferApprovalNotification({
+          ...offer.toObject(),
+          userId: user, // Pass the full user object
+          businessId: offer.businessId
+        }, 'approved');
+        console.log(`📧 Approval notification sent to ${user.email}`);
+      } catch (emailError) {
+        console.error('Failed to send approval notification:', emailError);
+        // Don't fail the whole request if email fails
+      }
+    } else {
+      console.log(`⚠️ User not found for userId: ${offer.userId}`);
     }
 
     res.json({
@@ -2898,10 +2917,11 @@ app.patch('/api/admin/offers/:id/approve', async (req, res) => {
       offer: offer
     });
   } catch (error) {
-    console.error('Error approving offer:', error);
+    console.error('❌ Error approving offer:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to approve offer'
+      message: 'Failed to approve offer',
+      error: error.message
     });
   }
 });
@@ -2919,6 +2939,8 @@ app.patch('/api/admin/offers/:id/decline', async (req, res) => {
       });
     }
 
+    console.log(`🔄 Declining offer ${id} by ${reviewedBy || 'Admin'}`);
+
     const offer = await Offer.findByIdAndUpdate(
       id,
       {
@@ -2929,10 +2951,10 @@ app.patch('/api/admin/offers/:id/decline', async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
-    ).populate('businessId', 'name')
-     .populate('userId', 'firstName lastName email');
+    ).populate('businessId', 'name');
 
     if (!offer) {
+      console.log(`❌ Offer not found: ${id}`);
       return res.status(404).json({
         success: false,
         message: 'Offer not found'
@@ -2941,11 +2963,24 @@ app.patch('/api/admin/offers/:id/decline', async (req, res) => {
 
     console.log(`❌ Offer declined: ${offer.title} by ${reviewedBy || 'Admin'}`);
 
+    // FIXED: Find user by userId Number field, not ObjectId
+    const user = await User.findOne({ userId: offer.userId });
+
     // Send decline notification email
-    if (offer.userId && offer.userId.email) {
-      sendOfferApprovalNotification(offer, 'declined').catch(error => {
-        console.error('Failed to send decline notification:', error);
-      });
+    if (user && user.email) {
+      try {
+        await sendOfferApprovalNotification({
+          ...offer.toObject(),
+          userId: user, // Pass the full user object
+          businessId: offer.businessId
+        }, 'declined');
+        console.log(`📧 Decline notification sent to ${user.email}`);
+      } catch (emailError) {
+        console.error('Failed to send decline notification:', emailError);
+        // Don't fail the whole request if email fails
+      }
+    } else {
+      console.log(`⚠️ User not found for userId: ${offer.userId}`);
     }
 
     res.json({
@@ -2954,17 +2989,133 @@ app.patch('/api/admin/offers/:id/decline', async (req, res) => {
       offer: offer
     });
   } catch (error) {
-    console.error('Error declining offer:', error);
+    console.error('❌ Error declining offer:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to decline offer'
+      message: 'Failed to decline offer',
+      error: error.message
+    });
+  }
+});
+app.delete('/api/admin/offers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log(`🗑️ Deleting offer ${id}`);
+
+    // First find the offer to get its details
+    const offer = await Offer.findById(id).populate('businessId', 'name');
+
+    if (!offer) {
+      console.log(`❌ Offer not found: ${id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found'
+      });
+    }
+
+    // Delete the offer
+    await Offer.findByIdAndDelete(id);
+
+    console.log(`✅ Offer deleted: ${offer.title} (ID: ${offer.offerId})`);
+
+    res.json({
+      success: true,
+      message: 'Offer deleted successfully',
+      deletedOffer: {
+        id: offer._id,
+        title: offer.title,
+        businessName: offer.businessId?.name || 'Unknown'
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error deleting offer:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete offer',
+      error: error.message
+    });
+  }
+});
+
+app.put('/api/admin/offers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, discount, category, startDate, endDate, isActive } = req.body;
+
+    if (!title || !discount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title and discount are required'
+      });
+    }
+
+    console.log(`✏️ Admin editing offer ${id}`);
+
+    // Validate dates if provided
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      if (start >= end) {
+        return res.status(400).json({
+          success: false,
+          message: 'End date must be after start date'
+        });
+      }
+    }
+
+    const updateData = {
+      title,
+      discount,
+      category,
+      isActive: isActive !== undefined ? isActive : true,
+      updatedAt: new Date()
+    };
+
+    if (startDate !== undefined) {
+      updateData.startDate = startDate ? new Date(startDate) : null;
+    }
+
+    if (endDate !== undefined) {
+      updateData.endDate = endDate ? new Date(endDate) : null;
+    }
+
+    const updatedOffer = await Offer.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    ).populate('businessId', 'name');
+
+    if (!updatedOffer) {
+      console.log(`❌ Offer not found: ${id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found'
+      });
+    }
+
+    console.log(`✅ Offer updated by admin: ${updatedOffer.title}`);
+
+    res.json({
+      success: true,
+      message: 'Offer updated successfully by admin',
+      offer: updatedOffer
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating offer (admin):', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update offer',
+      error: error.message
     });
   }
 });
 
 const sendOfferApprovalNotification = async (offer, action) => {
   const transporter = createTransporter();
-  const user = offer.userId;
+  const user = offer.userId; // This is now the full user object
   const business = offer.businessId;
 
   const isApproved = action === 'approved';
@@ -2992,10 +3143,10 @@ const sendOfferApprovalNotification = async (offer, action) => {
             <h3 style="margin: 0 0 15px; color: ${statusColor};">📢 Offer Details</h3>
             <p style="margin: 5px 0;"><strong>Title:</strong> ${offer.title}</p>
             <p style="margin: 5px 0;"><strong>Discount:</strong> <span style="color: ${statusColor}; font-weight: bold; font-size: 18px;">${offer.discount} OFF</span></p>
-            <p style="margin: 5px 0;"><strong>Business:</strong> ${business.name}</p>
+            <p style="margin: 5px 0;"><strong>Business:</strong> ${business?.name || 'N/A'}</p>
             <p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>
             <p style="margin: 5px 0;"><strong>Reviewed by:</strong> ${offer.reviewedBy}</p>
-            <p style="margin: 5px 0;"><strong>Review Date:</strong> ${offer.reviewedAt.toLocaleDateString()}</p>
+            <p style="margin: 5px 0;"><strong>Review Date:</strong> ${offer.reviewedAt ? new Date(offer.reviewedAt).toLocaleDateString() : 'N/A'}</p>
           </div>
           
           ${offer.adminComments ? `
@@ -3259,7 +3410,7 @@ app.put('/api/offers/:id', async (req, res) => {
       updateData.reviewedBy = null;       // Clear previous reviewer
       updateData.reviewedAt = null;       // Clear previous review date
       statusReset = true;
-      
+
       console.log(`🔄 Offer ${id} content changed - resetting status from ${existingOffer.adminStatus} to pending`);
     }
 
@@ -3438,7 +3589,7 @@ app.delete('/api/offers/:id', async (req, res) => {
 app.get('/api/offers/:id/status-history', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const offer = await Offer.findById(id)
       .populate('businessId', 'name')
       .select('title adminStatus reviewedBy reviewedAt updatedAt createdAt adminComments');
@@ -3451,7 +3602,7 @@ app.get('/api/offers/:id/status-history', async (req, res) => {
     }
 
     // Calculate if offer was resubmitted
-    const wasResubmitted = offer.updatedAt && offer.reviewedAt && 
+    const wasResubmitted = offer.updatedAt && offer.reviewedAt &&
       new Date(offer.updatedAt) > new Date(offer.reviewedAt);
 
     res.json({
