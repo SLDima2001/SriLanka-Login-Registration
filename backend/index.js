@@ -35,7 +35,26 @@ const adminSchema = new mongoose.Schema({
 }, {
   timestamps: true // This will automatically add createdAt and updatedAt
 });
+const counterSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  sequence_value: { type: Number, default: 0 }
+});
 
+counterSchema.statics.getNextSequence = async function(sequenceName) {
+  try {
+    const result = await this.findOneAndUpdate(
+      { _id: sequenceName },
+      { $inc: { sequence_value: 1 } },
+      { new: true, upsert: true }
+    );
+    return result.sequence_value;
+  } catch (error) {
+    console.error('Error getting next sequence:', error);
+    return Date.now(); // Fallback to timestamp
+  }
+};
+
+const Counter = mongoose.model('Counter', counterSchema);
 
 async function checkUserPlanLimits(userId) {
   try {
@@ -693,8 +712,8 @@ async function applyFreePlanLimitations(userId) {
       userId: parseInt(userId),
       status: 'active'
     })
-    .sort({ createdAt: -1 })
-    .skip(1); // Skip the first (most recent) business
+      .sort({ createdAt: -1 })
+      .skip(1); // Skip the first (most recent) business
 
     for (const business of excessBusinesses) {
       await Business.updateOne(
@@ -728,8 +747,8 @@ async function applyFreePlanLimitations(userId) {
       userId: parseInt(userId),
       status: 'active'
     })
-    .sort({ createdAt: -1 })
-    .skip(3); // Skip the first 3 (most recent) offers
+      .sort({ createdAt: -1 })
+      .skip(3); // Skip the first 3 (most recent) offers
 
     for (const offer of excessOffers) {
       await Offer.updateOne(
@@ -755,7 +774,7 @@ async function applyFreePlanLimitations(userId) {
 async function cancelPayHereRecurringPayment(recurringToken) {
   try {
     console.log('Cancelling PayHere recurring payment:', recurringToken);
-    
+
     if (!recurringToken) {
       throw new Error('No recurring token provided');
     }
@@ -763,16 +782,16 @@ async function cancelPayHereRecurringPayment(recurringToken) {
     // For now, skip PayHere API call since the endpoint doesn't exist
     // Just update your database and inform PayHere manually
     console.log('PayHere API integration not available - updating database only');
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       message: 'Database updated - PayHere recurring payment marked for manual cancellation',
-      requiresManualCancellation: true 
+      requiresManualCancellation: true
     };
 
   } catch (error) {
     console.error('PayHere cancellation error:', error.message);
-    
+
     // Log this for manual follow-up
     try {
       await SubscriptionLog.create({
@@ -789,12 +808,12 @@ async function cancelPayHereRecurringPayment(recurringToken) {
     } catch (logError) {
       console.error('Failed to log PayHere cancellation error:', logError);
     }
-    
+
     // Don't throw error - allow database update to proceed
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: error.message,
-      requiresManualCancellation: true 
+      requiresManualCancellation: true
     };
   }
 }
@@ -888,66 +907,37 @@ const handleSubscriptionCancellation = async (notificationData) => {
 const payhereConfig = {
   merchantId: process.env.PAYHERE_MERCHANT_ID?.trim(),
   merchantSecret: process.env.PAYHERE_MERCHANT_SECRET?.trim(),
-   appId: process.env.PAYHERE_APP_ID,
-  appSecret: process.env.PAYHERE_APP_SECRET,
+  appId: process.env.PAYHERE_APP_ID?.trim(), // NEW
+  appSecret: process.env.PAYHERE_APP_SECRET?.trim(), // NEW
   mode: process.env.PAYHERE_MODE?.trim() || 'sandbox',
   notifyUrl: process.env.PAYHERE_NOTIFY_URL?.trim() || 'https://your-ngrok-url.ngrok.io/payhere-notify',
   returnUrl: process.env.PAYHERE_RETURN_URL?.trim() || 'http://localhost:5173/payment-success',
-  cancelUrl: process.env.PAYHERE_CANCEL_URL?.trim() || 'http://localhost:5173/payment-cancel'
+  cancelUrl: process.env.PAYHERE_CANCEL_URL?.trim() || 'http://localhost:5173/payment-cancel',
+
+   apiBaseUrl: process.env.PAYHERE_MODE === 'live' 
+    ? 'https://www.payhere.lk/pay/api' 
+    : 'https://sandbox.payhere.lk/pay/api'
 };
 // Validate PayHere config on startup
 const validatePayHereConfig = () => {
-  console.log('🔍 Validating PayHere Configuration...');
-
   const issues = [];
-
-  // Validate merchant ID
-  if (!payhereConfig.merchantId) {
-    issues.push('❌ PAYHERE_MERCHANT_ID is missing');
-  } else {
-    // Trim whitespace and validate format
-    const cleanMerchantId = payhereConfig.merchantId.trim();
-    console.log(`✅ Merchant ID: ${cleanMerchantId}`);
-
-    // For sandbox, merchant ID should be exactly 7 digits
-    if (payhereConfig.mode === 'sandbox' && !/^\d{7}$/.test(cleanMerchantId)) {
-      issues.push(`❌ Sandbox Merchant ID should be exactly 7 digits, got: ${cleanMerchantId} (${cleanMerchantId.length} digits)`);
-    }
-
-    // Update config with cleaned value
-    payhereConfig.merchantId = cleanMerchantId;
-  }
-
-  // Validate merchant secret
-  if (!payhereConfig.merchantSecret) {
-    issues.push('❌ PAYHERE_MERCHANT_SECRET is missing');
-  } else {
-    const cleanSecret = payhereConfig.merchantSecret.trim();
-    console.log(`✅ Merchant Secret: ${cleanSecret.substring(0, 10)}... (${cleanSecret.length} chars)`);
-
-    // Merchant secret should be fairly long
-    if (cleanSecret.length < 30) {
-      issues.push(`❌ Merchant Secret seems too short: ${cleanSecret.length} chars`);
-    }
-
-    // Update config with cleaned value
-    payhereConfig.merchantSecret = cleanSecret;
-  }
-
+  
+  if (!process.env.PAYHERE_MERCHANT_ID) issues.push('Missing PAYHERE_MERCHANT_ID');
+  if (!process.env.PAYHERE_MERCHANT_SECRET) issues.push('Missing PAYHERE_MERCHANT_SECRET');
+  if (!process.env.PAYHERE_APP_ID) issues.push('Missing PAYHERE_APP_ID');
+  if (!process.env.PAYHERE_APP_SECRET) issues.push('Missing PAYHERE_APP_SECRET');
+  
   if (issues.length > 0) {
-    console.error('❌ PayHere Configuration Issues:');
-    issues.forEach(issue => console.error(`   ${issue}`));
+    console.error('PayHere Configuration Issues:', issues);
     return false;
   }
-
-  console.log('✅ PayHere configuration is valid!');
+  
+  console.log('PayHere configuration validated successfully');
   return true;
 };
 
-// Call validation on startup
+// Call this on server startup
 validatePayHereConfig();
-
-
 // Enhanced hash generation with logging
 const generatePayHereHash = (merchantId, orderId, amount, currency, merchantSecret) => {
   try {
@@ -1014,33 +1004,47 @@ function verifyPayHereHash(data, merchantSecret) {
 
 app.post('/create-payhere-payment', async (req, res) => {
   try {
-    console.log('PayHere Payment Creation Started');
+    console.log('🔄 PayHere Payment Creation Started');
 
     const { amount, currency = 'LKR', planId, customerData } = req.body;
 
-    // Validate PayHere configuration
-    if (!payhereConfig.merchantId || !payhereConfig.merchantSecret) {
-      console.error('PayHere basic configuration missing');
+    // Validate PayHere configuration including new App credentials
+    if (!validatePayHereConfig()) {
       return res.status(500).json({
         success: false,
-        error: 'PayHere configuration invalid'
+        error: 'PayHere configuration invalid - missing required credentials'
       });
     }
 
     // Validate amount
     const numAmount = parseFloat(amount);
-    if (!amount || isNaN(numAmount) || numAmount < 1) {
+    if (!amount || isNaN(numAmount) || numAmount < 10) {
       return res.status(400).json({
         success: false,
-        error: 'Amount must be at least LKR 1.00'
+        error: 'Amount must be at least LKR 10.00'
       });
     }
 
     // Validate customer data
-    if (!customerData?.name || !customerData?.email) {
+    if (!customerData?.name?.trim()) {
       return res.status(400).json({
         success: false,
-        error: 'Customer name and email are required'
+        error: 'Customer name is required'
+      });
+    }
+
+    if (!customerData?.email?.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer email is required'
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(customerData.email.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format'
       });
     }
 
@@ -1049,22 +1053,20 @@ app.post('/create-payhere-payment', async (req, res) => {
     const randomSuffix = Math.floor(Math.random() * 1000);
     const orderId = `ORDER_${timestamp}_${randomSuffix}`;
 
-    // Format amount and currency
+    // Format data
     const formattedAmount = numAmount.toFixed(2);
     const formattedCurrency = currency.toUpperCase();
 
-    // Process customer data
     const nameParts = customerData.name.trim().split(/\s+/);
     const firstName = nameParts[0] || 'Customer';
     const lastName = nameParts.slice(1).join(' ') || 'User';
 
-    // Clean phone number
     let cleanPhone = customerData.phoneNumber?.trim() || '0771234567';
     if (!cleanPhone.startsWith('0')) {
       cleanPhone = '0' + cleanPhone;
     }
 
-    // Generate hash using existing function
+    // Generate hash
     const hash = generatePayHereHash(
       payhereConfig.merchantId,
       orderId,
@@ -1081,7 +1083,7 @@ app.post('/create-payhere-payment', async (req, res) => {
       cancel_url: payhereConfig.cancelUrl,
       notify_url: payhereConfig.notifyUrl,
       order_id: orderId,
-      items: `${planId === '1' ? 'Free' : 'Premium'} Plan - Monthly`,
+      items: `${planId === '1' ? 'Free' : 'Premium'} Plan - Monthly Subscription`,
       currency: formattedCurrency,
       amount: formattedAmount,
       first_name: firstName,
@@ -1101,13 +1103,16 @@ app.post('/create-payhere-payment', async (req, res) => {
       paymentData.recurrence = '1 Month';
       paymentData.duration = 'Forever';
       paymentData.startup_fee = '0.00';
-      console.log('Recurring payment setup added for Premium plan');
+      console.log('✅ Recurring payment setup added for Premium plan');
     }
 
-    console.log('PayHere payment data prepared');
-    console.log('Order ID:', orderId);
-    console.log('Amount:', formattedAmount, formattedCurrency);
-    console.log('Recurring:', planId === '2' ? 'Yes' : 'No');
+    console.log('✅ PayHere payment data prepared:', {
+      orderId: orderId,
+      amount: formattedAmount,
+      currency: formattedCurrency,
+      recurring: planId === '2',
+      customerEmail: paymentData.email
+    });
 
     res.json({
       success: true,
@@ -1120,7 +1125,7 @@ app.post('/create-payhere-payment', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('PayHere payment creation failed:', error);
+    console.error('❌ PayHere payment creation failed:', error);
     res.status(500).json({
       success: false,
       error: 'Payment creation failed',
@@ -1128,6 +1133,7 @@ app.post('/create-payhere-payment', async (req, res) => {
     });
   }
 });
+
 
 
 
@@ -1165,8 +1171,8 @@ app.get('/debug-payhere-hash/:orderId/:amount', (req, res) => {
 
 app.post('/payhere-notify', express.urlencoded({ extended: true }), async (req, res) => {
   try {
-    console.log('PayHere Notification Received');
-    console.log('Raw Notification Data:', JSON.stringify(req.body, null, 2));
+    console.log('📨 PayHere Notification Received');
+    console.log('Raw data:', JSON.stringify(req.body, null, 2));
 
     const {
       merchant_id,
@@ -1188,77 +1194,52 @@ app.post('/payhere-notify', express.urlencoded({ extended: true }), async (req, 
 
     // Validate required fields
     if (!merchant_id || !order_id || !payhere_amount || !payhere_currency || !status_code || !md5sig) {
-      console.error('Missing required notification fields');
+      console.error('❌ Missing required notification fields');
       return res.status(400).send('Missing required fields');
     }
 
     // Verify merchant ID
     if (merchant_id.trim() !== payhereConfig.merchantId.trim()) {
-      console.error('Merchant ID mismatch');
+      console.error('❌ Merchant ID mismatch');
       return res.status(400).send('Merchant ID mismatch');
     }
 
     // Verify hash
     const isValidHash = verifyPayHereHash(req.body, payhereConfig.merchantSecret);
     if (!isValidHash) {
-      console.error('Hash verification failed');
+      console.error('❌ Hash verification failed');
       return res.status(400).send('Invalid hash');
     }
 
-    console.log('Hash verification successful');
-    console.log(`Payment Status: ${status_code} - ${status_message}`);
+    console.log('✅ Hash verification successful');
+    console.log(`Status: ${status_code} - ${status_message}`);
 
-    // Handle different types of notifications
+    // Handle successful payments
     if (status_code === '2') {
-      // Successful payment
-      if (event_type === 'SUBSCRIPTION_PAYMENT' || recurring_token) {
-        console.log('Processing recurring payment notification');
-        await handleRecurringPayment({
-          recurring_token: recurring_token || subscription_id,
-          payment_id,
-          payhere_amount,
-          status_code: '2',
-          email,
-          next_occurrence_date,
-          order_id
-        });
+      if (event_type === 'SUBSCRIPTION_PAYMENT' && recurring_token) {
+        console.log('🔄 Processing recurring payment...');
+        await handleRecurringPayment(req.body);
       } else {
-        console.log('Processing initial payment notification');
-        await handleInitialPayment({
-          order_id,
-          payment_id,
-          payhere_amount,
-          payhere_currency,
-          email,
-          custom_1,
-          custom_2,
-          recurring_token,
-          next_occurrence_date
-        });
+        console.log('💰 Processing initial payment...');
+        await handleInitialPayment(req.body);
       }
-    } else if (status_code === '-1') {
-      console.log('Payment cancelled by user');
-      await handlePaymentCancellation(order_id);
-    } else if (status_code === '0') {
-      console.log('Payment failed');
-      await handlePaymentFailure(order_id, status_message);
     } else {
-      console.log(`Payment status: ${status_code} - ${status_message}`);
+      console.log(`❌ Payment failed or cancelled: ${status_code} - ${status_message}`);
     }
 
-    // Always respond OK to PayHere
     res.status(200).send('OK');
 
   } catch (error) {
-    console.error('Error processing PayHere notification:', error);
+    console.error('❌ Error processing PayHere notification:', error);
     res.status(500).send('Server error');
   }
 });
 
+
 async function handleInitialPayment(paymentData) {
   try {
     const { order_id, payment_id, payhere_amount, custom_1, custom_2, recurring_token, email, next_occurrence_date } = paymentData;
-    
+
     console.log('Processing initial payment for order:', order_id);
     console.log('Recurring token received:', recurring_token);
 
@@ -1277,7 +1258,7 @@ async function handleInitialPayment(paymentData) {
     // Calculate subscription dates
     const startDate = new Date();
     const endDate = new Date(startDate);
-    
+
     if (billingCycle === 'yearly') {
       endDate.setFullYear(endDate.getFullYear() + 1);
     } else {
@@ -1308,15 +1289,15 @@ async function handleInitialPayment(paymentData) {
 
     // Update or create subscription
     const subscription = await Subscription.findOneAndUpdate(
-      { 
+      {
         $or: [
           { userId: user.userId },
           { userEmail: email.toLowerCase().trim() }
         ]
       },
       subscriptionData,
-      { 
-        upsert: true, 
+      {
+        upsert: true,
         new: true,
         setDefaultsOnInsert: true
       }
@@ -1381,7 +1362,7 @@ async function handleRecurringPayment(notificationData) {
 
       const currentEndDate = new Date(subscription.endDate);
       const newEndDate = new Date(currentEndDate);
-      
+
       // Extend by one billing period from current end date
       if (subscription.billingCycle === 'yearly') {
         newEndDate.setFullYear(newEndDate.getFullYear() + 1);
@@ -1391,7 +1372,7 @@ async function handleRecurringPayment(notificationData) {
 
       subscription.status = 'active';
       subscription.endDate = newEndDate; // This is key - extend the actual end date
-      subscription.nextBillingDate = next_occurrence_date ? 
+      subscription.nextBillingDate = next_occurrence_date ?
         new Date(next_occurrence_date) : newEndDate;
       subscription.renewalAttempts = 0;
       subscription.updatedAt = new Date();
@@ -1418,7 +1399,7 @@ async function handleRecurringPayment(notificationData) {
       console.log('Recurring payment failed');
 
       subscription.renewalAttempts += 1;
-      subscription.status = subscription.renewalAttempts >= subscription.maxRenewalAttempts ? 
+      subscription.status = subscription.renewalAttempts >= subscription.maxRenewalAttempts ?
         'cancelled' : 'pending_renewal';
 
       subscription.renewalHistory.push({
@@ -1445,7 +1426,7 @@ async function handleRecurringPayment(notificationData) {
 async function fixSubscriptionEndDates() {
   try {
     console.log('Fixing subscriptions without proper end dates...');
-    
+
     const subscriptionsWithoutEndDate = await Subscription.find({
       $or: [
         { endDate: null },
@@ -1459,7 +1440,7 @@ async function fixSubscriptionEndDates() {
     for (const subscription of subscriptionsWithoutEndDate) {
       const startDate = new Date(subscription.startDate);
       const endDate = new Date(startDate);
-      
+
       // Calculate end date based on plan and billing cycle
       if (subscription.planId === '2') { // Premium
         if (subscription.billingCycle === 'yearly') {
@@ -1473,8 +1454,8 @@ async function fixSubscriptionEndDates() {
 
       await Subscription.updateOne(
         { _id: subscription._id },
-        { 
-          $set: { 
+        {
+          $set: {
             endDate: endDate,
             updatedAt: new Date()
           }
@@ -1688,12 +1669,12 @@ const subscriptionLogSchema = new mongoose.Schema({
   action: {
     type: String,
     enum: [
-      'created', 
-      'renewed', 
-      'cancelled', 
+      'created',
+      'renewed',
+      'cancelled',
       'cancellation_scheduled',
-      'cancellation_cancelled', 
-      'auto_downgrade_to_free', 
+      'cancellation_cancelled',
+      'auto_downgrade_to_free',
       'payment_failed',
       'auto_renewal_cancelled',       // FIXED: Added this
       'auto_renewal_reactivated',     // FIXED: Added this
@@ -1701,7 +1682,7 @@ const subscriptionLogSchema = new mongoose.Schema({
       'downgrade_processed',          // FIXED: Added this
       'downgrade_cancelled',          // FIXED: Added this
       'plan_limit_enforced',
-      'auto_plan_enforcement', 
+      'auto_plan_enforcement',
       'items_suspended',
       'items_reactivated'
     ],
@@ -1714,10 +1695,10 @@ const subscriptionLogSchema = new mongoose.Schema({
 app.post('/api/subscription/trigger-renewals-test', async (req, res) => {
   try {
     console.log('🧪 Manual renewal processing triggered for testing');
-    
+
     // Call the main renewal processing function
     const response = await axios.post('http://localhost:5555/api/subscription/process-automatic-renewals');
-    
+
     res.json({
       success: true,
       message: 'Test renewal processing completed',
@@ -1734,9 +1715,14 @@ app.post('/api/subscription/trigger-renewals-test', async (req, res) => {
 
 const SubscriptionLog = mongoose.model('SubscriptionLog', subscriptionLogSchema);
 
+
+
 const subscriptionSchema = new mongoose.Schema({
+  // Core identification
   userId: { type: Number, ref: 'User' },
   userEmail: { type: String, required: true, index: true },
+  
+  // Plan details
   planId: { type: String, required: true },
   planName: { type: String, required: true },
   status: {
@@ -1756,19 +1742,19 @@ const subscriptionSchema = new mongoose.Schema({
   paymentMethod: { type: String, default: 'payhere' },
   payhereOrderId: { type: String, index: true },
   payherePaymentId: { type: String },
-  
-  // Auto-renewal fields
-  payhereRecurringToken: { type: String, index: true }, // For recurring payments
+
+  // Auto-renewal fields (for premium subscriptions)
+  payhereRecurringToken: { type: String, index: true },
   autoRenew: { type: Boolean, default: false },
   renewalAttempts: { type: Number, default: 0 },
   maxRenewalAttempts: { type: Number, default: 3 },
 
   // Dates
   startDate: { type: Date, default: Date.now },
-  endDate: { type: Date, required: true }, // CRITICAL: Made required for downgrade calculations
+  endDate: { type: Date }, // Free plan: null, Premium: calculated
   nextBillingDate: { type: Date, index: true },
 
-  // ADDED: Downgrade fields (these were missing)
+  // Downgrade fields
   downgradeScheduled: { type: Boolean, default: false },
   downgradeScheduledDate: { type: Date },
   downgradeReason: { type: String },
@@ -1780,14 +1766,14 @@ const subscriptionSchema = new mongoose.Schema({
   },
   downgradeProcessedDate: { type: Date },
 
-  // ADDED: Legacy cancellation fields (for backward compatibility)
+  // Legacy cancellation fields (for backward compatibility)
   cancellationScheduled: { type: Boolean, default: false },
   cancellationScheduledDate: { type: Date },
   cancellationReason: { type: String },
   cancellationEffectiveDate: { type: Date },
   cancellationProcessedDate: { type: Date },
 
-  // ADDED: Payment failure tracking
+  // Payment failure tracking
   paymentFailure: { type: Boolean, default: false },
   paymentFailureReason: { type: String },
   lastPaymentFailureDate: { type: Date },
@@ -1806,7 +1792,7 @@ const subscriptionSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// ADDED: Indexes for better performance
+// Indexes for better performance
 subscriptionSchema.index({ userId: 1, status: 1 });
 subscriptionSchema.index({ userEmail: 1, status: 1 });
 subscriptionSchema.index({ downgradeScheduled: 1, downgradeEffectiveDate: 1 });
@@ -1814,41 +1800,49 @@ subscriptionSchema.index({ nextBillingDate: 1, autoRenew: 1 });
 subscriptionSchema.index({ payhereRecurringToken: 1 });
 subscriptionSchema.index({ endDate: 1, status: 1 }); // Critical for downgrade processing
 
-// ADDED: Pre-save middleware to update timestamps and validate endDate
-subscriptionSchema.pre('save', function(next) {
+// Pre-save middleware with proper endDate calculation
+subscriptionSchema.pre('save', function (next) {
   this.updatedAt = new Date();
-  
-  // Ensure endDate is set if not provided
-  if (!this.endDate && this.startDate) {
-    const endDate = new Date(this.startDate);
-    if (this.planId === '1') { // Free plan
-      endDate.setFullYear(endDate.getFullYear() + 10); // Long validity
-    } else if (this.billingCycle === 'yearly') {
-      endDate.setFullYear(endDate.getFullYear() + 1);
+
+  // Set endDate for new subscriptions
+  if (this.isNew && !this.endDate) {
+    const startDate = this.startDate || new Date();
+    if (this.planId === '1') {
+      // Free plan never expires
+      this.endDate = null;
     } else {
-      endDate.setMonth(endDate.getMonth() + 1);
+      // Premium plan - calculate end date
+      const endDate = new Date(startDate);
+      if (this.billingCycle === 'yearly') {
+        endDate.setFullYear(endDate.getFullYear() + 1);
+      } else {
+        endDate.setMonth(endDate.getMonth() + 1);
+      }
+      this.endDate = endDate;
+      this.nextBillingDate = this.autoRenew ? endDate : null;
     }
-    this.endDate = endDate;
   }
-  
+
   next();
 });
 
-// ADDED: Instance method to calculate days until expiration
-subscriptionSchema.methods.getDaysUntilExpiration = function() {
-  if (!this.endDate) return 0;
+// Instance method to calculate days until expiration
+subscriptionSchema.methods.getDaysUntilExpiration = function () {
+  if (!this.endDate) return null; // Free plans never expire
   const today = new Date();
   const diffTime = this.endDate - today;
   return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 };
 
-// ADDED: Instance method to check if subscription is expiring soon
-subscriptionSchema.methods.isExpiringSoon = function(days = 7) {
-  return this.getDaysUntilExpiration() <= days && this.getDaysUntilExpiration() > 0;
+// Instance method to check if subscription is expiring soon
+subscriptionSchema.methods.isExpiringSoon = function (days = 7) {
+  const daysUntilExpiration = this.getDaysUntilExpiration();
+  if (daysUntilExpiration === null) return false; // Free plans never expire
+  return daysUntilExpiration <= days && daysUntilExpiration > 0;
 };
 
-// ADDED: Instance method to get effective downgrade date
-subscriptionSchema.methods.getDowngradeEffectiveDate = function() {
+// Instance method to get effective downgrade date
+subscriptionSchema.methods.getDowngradeEffectiveDate = function () {
   if (this.downgradeEffectiveDate) {
     return this.downgradeEffectiveDate;
   }
@@ -1856,8 +1850,18 @@ subscriptionSchema.methods.getDowngradeEffectiveDate = function() {
   return this.endDate;
 };
 
-// ADDED: Static method to find subscriptions ready for downgrade
-subscriptionSchema.statics.findReadyForDowngrade = function() {
+// Instance method to check if subscription is a premium plan
+subscriptionSchema.methods.isPremium = function () {
+  return this.planId === '2';
+};
+
+// Instance method to check if subscription is a free plan
+subscriptionSchema.methods.isFree = function () {
+  return this.planId === '1';
+};
+
+// Static method to find subscriptions ready for downgrade
+subscriptionSchema.statics.findReadyForDowngrade = function () {
   const today = new Date();
   return this.find({
     downgradeScheduled: true,
@@ -1867,11 +1871,11 @@ subscriptionSchema.statics.findReadyForDowngrade = function() {
   });
 };
 
-// ADDED: Static method to find subscriptions needing renewal
-subscriptionSchema.statics.findNeedingRenewal = function() {
+// Static method to find subscriptions needing renewal
+subscriptionSchema.statics.findNeedingRenewal = function () {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  
+
   return this.find({
     status: 'active',
     planId: '2',
@@ -1881,10 +1885,30 @@ subscriptionSchema.statics.findNeedingRenewal = function() {
   });
 };
 
+// Static method to find active premium subscriptions
+subscriptionSchema.statics.findActivePremium = function () {
+  return this.find({
+    status: 'active',
+    planId: '2'
+  });
+};
+
+// Static method to find expired subscriptions
+subscriptionSchema.statics.findExpired = function () {
+  const today = new Date();
+  return this.find({
+    status: 'active',
+    endDate: { $lte: today, $ne: null }, // Exclude free plans (endDate: null)
+    planId: '2' // Only premium plans can expire
+  });
+};
+
+
+
 async function migrateSubscriptions() {
   try {
     console.log('🔄 Starting subscription migration...');
-    
+
     // Step 1: Add missing boolean fields with default values
     const result1 = await db.subscriptions.updateMany(
       {},
@@ -1899,9 +1923,9 @@ async function migrateSubscriptions() {
         }
       }
     );
-    
+
     console.log(`✅ Updated ${result1.modifiedCount} subscriptions with default boolean fields`);
-    
+
     // Step 2: Fix missing endDate fields
     const subscriptionsWithoutEndDate = await db.subscriptions.find({
       $or: [
@@ -1909,13 +1933,13 @@ async function migrateSubscriptions() {
         { endDate: { $exists: false } }
       ]
     });
-    
+
     console.log(`📋 Found ${subscriptionsWithoutEndDate.length} subscriptions without endDate`);
-    
+
     for (const subscription of subscriptionsWithoutEndDate) {
       const startDate = new Date(subscription.startDate);
       const endDate = new Date(startDate);
-      
+
       // Calculate endDate based on plan and billing cycle
       if (subscription.planId === '1') { // Free plan
         endDate.setFullYear(endDate.getFullYear() + 10);
@@ -1924,38 +1948,38 @@ async function migrateSubscriptions() {
       } else { // Monthly
         endDate.setMonth(endDate.getMonth() + 1);
       }
-      
+
       await db.subscriptions.updateOne(
         { _id: subscription._id },
-        { 
-          $set: { 
+        {
+          $set: {
             endDate: endDate,
             updatedAt: new Date()
           }
         }
       );
     }
-    
+
     console.log(`✅ Fixed endDate for ${subscriptionsWithoutEndDate.length} subscriptions`);
-    
+
     // Step 3: Ensure all subscriptions have proper updatedAt
     const result3 = await db.subscriptions.updateMany(
       { updatedAt: { $exists: false } },
       { $set: { updatedAt: new Date() } }
     );
-    
+
     console.log(`✅ Added updatedAt to ${result3.modifiedCount} subscriptions`);
-    
+
     // Step 4: Initialize empty renewalHistory for subscriptions that don't have it
     const result4 = await db.subscriptions.updateMany(
       { renewalHistory: { $exists: false } },
       { $set: { renewalHistory: [] } }
     );
-    
+
     console.log(`✅ Initialized renewalHistory for ${result4.modifiedCount} subscriptions`);
-    
+
     console.log('🎉 Subscription migration completed successfully!');
-    
+
     return {
       success: true,
       message: 'Migration completed',
@@ -1966,7 +1990,7 @@ async function migrateSubscriptions() {
         renewalHistoryInitialized: result4.modifiedCount
       }
     };
-    
+
   } catch (error) {
     console.error('❌ Migration failed:', error);
     return {
@@ -1988,6 +2012,8 @@ app.post('/api/subscription/migrate', async (req, res) => {
   }
 });
 const Subscription = mongoose.model('Subscription', subscriptionSchema);
+
+
 const enhancedSubscriptionHistorySchema = new mongoose.Schema({
   userId: { type: Number, required: true },
   userEmail: { type: String, required: true },
@@ -2387,7 +2413,7 @@ app.post('/api/user/check-subscription', async (req, res) => {
 
 app.post('/api/subscription/cancel-auto-renewal', async (req, res) => {
   let session = null;
-  
+
   try {
     const { userId, userEmail, reason } = req.body;
 
@@ -2498,7 +2524,7 @@ app.post('/api/subscription/cancel-auto-renewal', async (req, res) => {
 
       // Prepare response message
       let message = 'Auto-renewal cancelled successfully. Your subscription will remain active until the end of the current billing period.';
-      
+
       if (!payhereResult.success) {
         message += ' Note: PayHere recurring payment requires manual cancellation by our team.';
       }
@@ -2512,7 +2538,7 @@ app.post('/api/subscription/cancel-auto-renewal', async (req, res) => {
     } else {
       await session.abortTransaction();
       console.error('❌ Failed to update subscription in database - no documents modified');
-      
+
       res.json({
         success: false,
         message: 'Failed to cancel auto-renewal. Please try again or contact support.',
@@ -2541,7 +2567,7 @@ app.post('/api/subscription/cancel-auto-renewal', async (req, res) => {
 
 app.post('/api/subscription/reactivate-auto-renewal', async (req, res) => {
   let session = null;
-  
+
   try {
     const { userId, userEmail } = req.body;
 
@@ -2920,7 +2946,7 @@ app.post('/api/user/check-subscription-with-renewal', async (req, res) => {
         downgradeReason: subscription.downgradeReason || null,
         downgradeScheduledDate: subscription.downgradeScheduledDate || null
       },
-      
+
       // FIXED: Also return at root level for backwards compatibility
       autoRenewal: subscription.autoRenew, // This is what your frontend was looking for
       renewalWarning: subscription.renewalAttempts > 0,
@@ -3351,7 +3377,7 @@ app.post('/api/subscription/cancel-scheduled-cancellation', async (req, res) => 
         userEmail: subscription.userEmail, // Use the email from the subscription
         action: subscription.downgradeScheduled ? 'downgrade_cancelled' : 'cancellation_cancelled',
         fromPlan: 'Premium Plan',
-        toPlan: 'Premium Plan', 
+        toPlan: 'Premium Plan',
         reason: 'User cancelled scheduled downgrade/cancellation',
         effectiveDate: new Date(),
         notes: 'Premium subscription will continue with auto-renewal enabled'
@@ -3549,7 +3575,7 @@ app.get('/api/admin/auto-renewal-subscriptions', async (req, res) => {
 
     // Build filter - look for subscriptions with auto-renewal capability
     let filter = {};
-    
+
     if (status && status !== 'all') {
       filter.status = status;
     }
@@ -3576,7 +3602,7 @@ app.get('/api/admin/auto-renewal-subscriptions', async (req, res) => {
       subscriptions.map(async (subscription) => {
         try {
           // Find user details
-          const user = await User.findOne({ 
+          const user = await User.findOne({
             $or: [
               { userId: subscription.userId },
               { email: subscription.userEmail }
@@ -3633,20 +3659,20 @@ app.get('/api/admin/auto-renewal-subscriptions', async (req, res) => {
 
     // Calculate statistics
     const stats = {
-      totalAutoRenewal: await Subscription.countDocuments({ 
+      totalAutoRenewal: await Subscription.countDocuments({
         planId: '2',
-        autoRenew: true 
+        autoRenew: true
       }),
-      activeAutoRenewal: await Subscription.countDocuments({ 
+      activeAutoRenewal: await Subscription.countDocuments({
         planId: '2',
-        autoRenew: true, 
-        status: 'active' 
+        autoRenew: true,
+        status: 'active'
       }),
-      pendingRenewal: await Subscription.countDocuments({ 
+      pendingRenewal: await Subscription.countDocuments({
         planId: '2',
-        status: 'pending_renewal' 
+        status: 'pending_renewal'
       }),
-      failedRenewal: await Subscription.countDocuments({ 
+      failedRenewal: await Subscription.countDocuments({
         planId: '2',
         $or: [
           { status: 'payment_failed' },
@@ -3716,7 +3742,7 @@ app.post('/create-payhere-payment-with-auto-renewal', async (req, res) => {
 app.get('/api/admin/renewal-monitoring', async (req, res) => {
   try {
     console.log('📊 Fetching renewal monitoring data...');
-    
+
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -3741,16 +3767,16 @@ app.get('/api/admin/renewal-monitoring', async (req, res) => {
       planId: '2',
       status: 'active',
       $or: [
-        { 
-          nextBillingDate: { 
-            $gte: now, 
-            $lte: tomorrow 
-          } 
+        {
+          nextBillingDate: {
+            $gte: now,
+            $lte: tomorrow
+          }
         },
-        { 
-          endDate: { 
-            $gte: now, 
-            $lte: tomorrow 
+        {
+          endDate: {
+            $gte: now,
+            $lte: tomorrow
           },
           autoRenew: true
         }
@@ -3762,16 +3788,16 @@ app.get('/api/admin/renewal-monitoring', async (req, res) => {
       planId: '2',
       status: 'active',
       $or: [
-        { 
-          nextBillingDate: { 
-            $gte: now, 
-            $lte: nextWeek 
-          } 
+        {
+          nextBillingDate: {
+            $gte: now,
+            $lte: nextWeek
+          }
         },
-        { 
-          endDate: { 
-            $gte: now, 
-            $lte: nextWeek 
+        {
+          endDate: {
+            $gte: now,
+            $lte: nextWeek
           },
           autoRenew: true
         }
@@ -3783,7 +3809,7 @@ app.get('/api/admin/renewal-monitoring', async (req, res) => {
       planId: '2',
       $or: [
         { status: 'pending_renewal' },
-        { 
+        {
           status: 'active',
           renewalAttempts: { $gt: 0, $lt: 3 }
         }
@@ -3954,7 +3980,7 @@ app.get('/api/admin/debug-subscriptions', async (req, res) => {
     const samples = await Subscription.find({})
       .limit(3)
       .lean();
-    
+
     // Get field analysis
     const fieldAnalysis = {};
     if (samples.length > 0) {
@@ -5179,7 +5205,7 @@ app.post('/api/subscription/schedule-downgrade', async (req, res) => {
 
     // Calculate effective date - ALWAYS use the subscription's actual end date
     let effectiveDate = subscription.endDate ? new Date(subscription.endDate) : null;
-    
+
     if (!effectiveDate) {
       if (subscription.nextBillingDate) {
         effectiveDate = new Date(subscription.nextBillingDate);
@@ -5639,7 +5665,7 @@ app.post('/create-subscription-record', async (req, res) => {
     });
   }
 });
-export { handleInitialPayment,handleRecurringPayment,fixSubscriptionEndDates};
+export { handleInitialPayment, handleRecurringPayment, fixSubscriptionEndDates };
 
 
 app.post('/payhere-notify-enhanced', express.urlencoded({ extended: true }), async (req, res) => {
@@ -5739,34 +5765,79 @@ app.post('/create-free-subscription', async (req, res) => {
   try {
     const { customerData } = req.body;
 
-    console.log('🆓 Creating free subscription for:', customerData.email);
-
-    // Validate customer data
-    if (!customerData?.name || !customerData?.email) {
-      return res.status(400).json({
-        success: false,
-        error: 'Customer name and email are required'
-      });
-    }
-
-    // Check if user already has a free subscription
-    const existingSubscription = await Subscription.findOne({
-      userEmail: customerData.email.trim().toLowerCase(),
-      planId: '1',
-      status: 'active'
+    console.log('🆓 Creating free subscription request:', {
+      hasCustomerData: !!customerData,
+      email: customerData?.email,
+      userId: customerData?.userId,
+      name: customerData?.name
     });
 
-    if (existingSubscription) {
+    // Enhanced validation
+    if (!customerData) {
       return res.status(400).json({
         success: false,
-        error: 'You already have an active free subscription'
+        error: 'Customer data is required'
       });
     }
 
-    // Create free subscription record
+    if (!customerData.email || !customerData.email.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer email is required'
+      });
+    }
+
+    if (!customerData.name || !customerData.name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer name is required'
+      });
+    }
+
+    const cleanEmail = customerData.email.trim().toLowerCase();
+    const cleanName = customerData.name.trim();
+
+    console.log('📧 Processing free subscription for:', cleanEmail);
+
+    // CRITICAL FIX: Check existing subscriptions properly
+    const existingSubscription = await Subscription.findOne({
+      $or: [
+        { userEmail: cleanEmail },
+        ...(customerData.userId ? [{ userId: customerData.userId }] : [])
+      ]
+    }).sort({ createdAt: -1 }); // Get most recent if multiple
+
+    if (existingSubscription) {
+      console.log('❌ Existing subscription found:', {
+        id: existingSubscription._id,
+        planId: existingSubscription.planId,
+        planName: existingSubscription.planName,
+        status: existingSubscription.status,
+        userEmail: existingSubscription.userEmail
+      });
+
+      // Check if it's an active subscription
+      if (existingSubscription.status === 'active') {
+        const planType = existingSubscription.planId === '1' ? 'Free' : 'Premium';
+        return res.status(400).json({
+          success: false,
+          error: `You already have an active ${planType} subscription`,
+          existing: {
+            planId: existingSubscription.planId,
+            planName: existingSubscription.planName,
+            status: existingSubscription.status
+          }
+        });
+      }
+      
+      // If subscription exists but is expired/cancelled, we can create a new free one
+      console.log('ℹ️ Existing subscription is inactive, proceeding with free subscription creation');
+    }
+
+    // Create new free subscription
     const freeSubscription = new Subscription({
       userId: customerData.userId || null,
-      userEmail: customerData.email.trim().toLowerCase(),
+      userEmail: cleanEmail,
       planId: '1',
       planName: 'Free Plan',
       status: 'active',
@@ -5775,25 +5846,67 @@ app.post('/create-free-subscription', async (req, res) => {
       currency: 'LKR',
       paymentMethod: 'free',
       startDate: new Date(),
-      endDate: null // Free plan never expires
+      endDate: null, // Free plan never expires
+      autoRenew: false
     });
 
-    await freeSubscription.save();
+    const savedSubscription = await freeSubscription.save();
 
-    console.log('✅ Free subscription created:', freeSubscription._id);
+    console.log('✅ Free subscription created successfully:', {
+      id: savedSubscription._id,
+      userEmail: savedSubscription.userEmail,
+      userId: savedSubscription.userId,
+      planId: savedSubscription.planId,
+      status: savedSubscription.status
+    });
+
+    // Create subscription log
+    await SubscriptionLog.create({
+      subscriptionId: savedSubscription._id,
+      userId: savedSubscription.userId || 0,
+      userEmail: savedSubscription.userEmail,
+      action: 'created',
+      details: {
+        planId: '1',
+        planName: 'Free Plan',
+        paymentMethod: 'free',
+        createdAt: new Date()
+      }
+    });
 
     res.json({
       success: true,
-      message: 'Free subscription created successfully',
-      subscriptionId: freeSubscription._id
+      message: 'Free subscription activated successfully! You can now create 1 business and up to 3 offers.',
+      subscription: {
+        id: savedSubscription._id,
+        planId: savedSubscription.planId,
+        planName: savedSubscription.planName,
+        status: savedSubscription.status,
+        billingCycle: savedSubscription.billingCycle,
+        endDate: savedSubscription.endDate,
+        paymentMethod: savedSubscription.paymentMethod,
+        amount: savedSubscription.amount,
+        currency: savedSubscription.currency,
+        startDate: savedSubscription.startDate
+      }
     });
 
   } catch (error) {
-    console.error('❌ Free subscription creation failed:', error);
+    console.error('❌ Error creating free subscription:', error);
+    
+    // Handle specific MongoDB errors
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'A subscription with this email already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       error: 'Failed to create free subscription',
-      message: error.message
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -5812,7 +5925,7 @@ app.get('/check-payment-status/:orderId', async (req, res) => {
 
     if (subscription) {
       console.log('✅ Found subscription for order:', subscription._id);
-      
+
       res.json({
         success: true,
         status: 'completed',
@@ -8069,7 +8182,7 @@ app.post('/api/subscription/schedule-downgrade', async (req, res) => {
 
     // Calculate effective date - use subscription's actual end date
     let effectiveDate = subscription.endDate ? new Date(subscription.endDate) : null;
-    
+
     // If no endDate exists, calculate it based on current period
     if (!effectiveDate) {
       if (subscription.nextBillingDate) {
@@ -8096,7 +8209,7 @@ app.post('/api/subscription/schedule-downgrade', async (req, res) => {
       try {
         // Attempt to cancel PayHere recurring payment
         console.log('🔄 Attempting to cancel PayHere recurring token:', subscription.payhereRecurringToken);
-        
+
         // Call PayHere API to cancel recurring payment
         const payhereResponse = await axios.post('https://sandbox.payhere.lk/pay/recurring/cancel', {
           merchant_id: process.env.PAYHERE_MERCHANT_ID,
@@ -9444,10 +9557,10 @@ cron.schedule('0 9 * * *', async () => {
 
 cron.schedule('0 2 * * *', async () => {
   console.log('🔄 Running daily downgrade processor...');
-  
+
   try {
     const now = new Date();
-    
+
     // Find subscriptions that should be downgraded today
     const subscriptionsToDowngrade = await Subscription.find({
       downgradeScheduled: true,
@@ -9536,15 +9649,15 @@ cron.schedule('0 2 * * *', async () => {
 cron.schedule('0 1 * * *', async () => {
   try {
     console.log('🕐 Running daily downgrade processing...');
-    
+
     const response = await fetch('http://localhost:5555/api/subscription/process-scheduled-downgrades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
     const result = await response.json();
     console.log('📊 Daily downgrade processing result:', result);
-    
+
   } catch (error) {
     console.error('❌ Error in daily downgrade processing:', error);
   }

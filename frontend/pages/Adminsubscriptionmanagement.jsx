@@ -1,44 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AdminAuthContext } from '../src/AdminAuthContext';
+import NavBar from '../component/Navbar';
 
-// Mock NavBar component since it's not provided
-const NavBar = ({ adminUser, logoutAdmin }) => (
-  <div style={{ 
-    background: '#667eea', 
-    color: 'white', 
-    padding: '1rem 2rem', 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    marginBottom: '2rem',
-    borderRadius: '12px'
-  }}>
-    <h2 style={{ margin: 0 }}>Admin Dashboard</h2>
-    <div>
-      <span style={{ marginRight: '1rem' }}>Welcome, {adminUser?.username || 'Admin'}</span>
-      <button 
-        onClick={logoutAdmin}
-        style={{
-          background: 'rgba(255,255,255,0.2)',
-          border: 'none',
-          color: 'white',
-          padding: '0.5rem 1rem',
-          borderRadius: '6px',
-          cursor: 'pointer'
-        }}
-      >
-        Logout
-      </button>
-    </div>
-  </div>
-);
-
-// Mock AdminAuthContext since it's not available in this environment
-const AdminAuthContext = React.createContext({
-  adminUser: { username: 'Admin' },
-  isLoading: false,
-  logoutAdmin: () => console.log('Logout clicked')
-});
 
 const AdminSubscriptionsManagement = () => {
   // State declarations
