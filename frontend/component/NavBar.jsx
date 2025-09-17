@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import axios from "axios";
+import NotificationDropdown from "./NotificationDropdown"; // Import the dropdown component
 
 const NavBar = ({ adminUser, logoutAdmin }) => {
   const navigate = useNavigate();
@@ -7,6 +9,14 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  
+  // Notification states
+  const [pendingOffersCount, setPendingOffersCount] = useState(0);
+  const [showNotificationBadge, setShowNotificationBadge] = useState(false);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  
+  // Notification dropdown state
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
 
   // Handle screen size changes
   useEffect(() => {
@@ -31,6 +41,88 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Fetch notification counts
+  const fetchNotificationCounts = async () => {
+    try {
+      setIsLoadingNotifications(true);
+      const response = await axios.get('http://localhost:5555/api/admin/notifications/counts');
+      
+      if (response.data && response.data.success) {
+        const newPendingCount = response.data.counts.pending || 0;
+        console.log('Fetched notification count:', newPendingCount);
+        setPendingOffersCount(newPendingCount);
+        setShowNotificationBadge(newPendingCount > 0);
+      }
+    } catch (error) {
+      console.error('Error fetching notification counts:', error);
+      // Fallback: try to get count from offers endpoint
+      try {
+        const offersResponse = await axios.get('http://localhost:5555/api/admin/offers?status=pending&limit=1');
+        if (offersResponse.data && offersResponse.data.success) {
+          const pendingCount = offersResponse.data.counts?.pending || 0;
+          setPendingOffersCount(pendingCount);
+          setShowNotificationBadge(pendingCount > 0);
+        }
+      } catch (fallbackError) {
+        console.error('Error with fallback notification fetch:', fallbackError);
+      }
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  // Mark notifications as seen and reset count
+  const markNotificationsAsSeen = async () => {
+    try {
+      const response = await axios.post('http://localhost:5555/api/admin/notifications/mark-seen', {
+        adminId: adminUser?.id || adminUser?.username || 'admin',
+        offerIds: [], // Could be expanded to track specific offers
+        timestamp: new Date().toISOString()
+      });
+      
+      if (response.data && response.data.success) {
+        console.log('Notifications marked as seen:', response.data);
+        return true;
+      } else {
+        console.error('Failed to mark notifications as seen:', response.data);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error marking notifications as seen:', error);
+      return false;
+    }
+  };
+
+  // Initial fetch and periodic updates
+  useEffect(() => {
+    fetchNotificationCounts();
+    
+    // Update counts every 30 seconds
+    const interval = setInterval(fetchNotificationCounts, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Reset count when visiting offers page
+  useEffect(() => {
+    if (location.pathname === '/admin/offers') {
+      // Reset notification count immediately when visiting offers page
+      setPendingOffersCount(0);
+      setShowNotificationBadge(false);
+      markNotificationsAsSeen();
+      
+      // Mark as seen
+      markNotificationsAsSeen();
+      
+      // Refresh counts after a delay to ensure backend is updated
+      const timer = setTimeout(() => {
+        fetchNotificationCounts();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname]);
 
   const isActiveRoute = (path) => {
     return location.pathname === path;
@@ -194,6 +286,11 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       transition: "color 0.3s ease",
     },
 
+    navButtonContainer: {
+      position: "relative",
+      display: "inline-block",
+    },
+
     desktopNavButton: {
       padding: "14px 28px",
       background: scrolled 
@@ -226,6 +323,62 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       boxShadow: "0 8px 25px rgba(59, 130, 246, 0.3)",
       position: "relative",
       overflow: "hidden",
+    },
+
+    notificationBadge: {
+      position: "absolute",
+      top: "-8px",
+      right: "-8px",
+      background: "linear-gradient(135deg, #ef4444, #dc2626)",
+      color: "white",
+      borderRadius: "50%",
+      width: "24px",
+      height: "24px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "11px",
+      fontWeight: "700",
+      boxShadow: "0 4px 12px rgba(239, 68, 68, 0.4), 0 0 0 2px white",
+      zIndex: 10,
+      animation: showNotificationBadge ? "pulse 2s infinite" : "none",
+      border: "2px solid white",
+      cursor: "pointer",
+      transition: "all 0.3s ease",
+    },
+
+    notificationBadgeMobile: {
+      position: "absolute",
+      top: "8px",
+      right: "8px",
+      background: "linear-gradient(135deg, #ef4444, #dc2626)",
+      color: "white",
+      borderRadius: "50%",
+      width: "20px",
+      height: "20px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "10px",
+      fontWeight: "700",
+      boxShadow: "0 2px 8px rgba(239, 68, 68, 0.4)",
+      zIndex: 10,
+      animation: showNotificationBadge ? "pulse 2s infinite" : "none",
+      cursor: "pointer",
+      transition: "all 0.3s ease",
+    },
+
+    notificationLoader: {
+      position: "absolute",
+      top: "-4px",
+      right: "-4px",
+      width: "16px",
+      height: "16px",
+      border: "2px solid rgba(255, 255, 255, 0.3)",
+      borderTop: "2px solid #ef4444",
+      borderRadius: "50%",
+      animation: "spin 1s linear infinite",
+      zIndex: 10,
     },
 
     mobileMenuItem: {
@@ -319,7 +472,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
     },
   };
 
-  // CSS for animations (inject into head)
+  // CSS animations
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
@@ -331,29 +484,85 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
         from { opacity: 1; }
         to { opacity: 0; }
       }
-      @keyframes slideInFromRight {
-        from { transform: translateX(100%); }
-        to { transform: translateX(0); }
+      @keyframes pulse {
+        0%, 100% { 
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% { 
+          transform: scale(1.1);
+          opacity: 0.8;
+        }
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
   }, []);
 
-  const handleOffersNavigation = () => {
-    try {
-      navigate("/admin/offers");
-      setMobileMenuOpen(false);
-    } catch (error) {
-      console.error("Navigation error:", error);
-      alert("Error navigating to offers page");
+const handleOffersNavigation = async () => {
+  try {
+    // Reset count immediately when navigating
+    setPendingOffersCount(0);
+    setShowNotificationBadge(false);
+    
+    navigate("/admin/offers");
+    setMobileMenuOpen(false);
+    setShowNotificationDropdown(false);
+    
+    // Mark as seen
+    markNotificationsAsSeen();
+    
+    // Refresh after navigation
+    setTimeout(fetchNotificationCounts, 1500);
+  } catch (error) {
+    console.error("Navigation error:", error);
+    alert("Error navigating to offers page");
+  }
+};
+
+  // Handle notification click to show dropdown and mark as seen
+const handleNotificationClick = async (e) => {
+  e.stopPropagation();
+  
+  if (pendingOffersCount > 0) {
+    // IMMEDIATE reset for better UX
+    setPendingOffersCount(0);
+    setShowNotificationBadge(false);
+    
+    // Toggle dropdown
+    setShowNotificationDropdown(!showNotificationDropdown);
+    
+    // Mark as seen (don't wait for response)
+    markNotificationsAsSeen().catch(error => {
+      console.error('Failed to mark as seen:', error);
+      // Keep count at 0 for better UX even if API fails
+    });
+  } else {
+    setShowNotificationDropdown(!showNotificationDropdown);
+  }
+};
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowNotificationDropdown(false);
+    };
+
+    if (showNotificationDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
     }
-  };
+  }, [showNotificationDropdown]);
 
   const handleStatsNavigation = () => {
     try {
       navigate("/detailsstats");
       setMobileMenuOpen(false);
+      setShowNotificationDropdown(false);
     } catch (error) {
       console.error("Navigation error:", error);
       alert("Error navigating to statistics page");
@@ -364,6 +573,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
     try {
       navigate("/usershowpage");
       setMobileMenuOpen(false);
+      setShowNotificationDropdown(false);
     } catch (error) {
       console.error("Navigation error:", error);
       alert("Error navigating to Dashboard page");
@@ -378,6 +588,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
           await logoutAdmin();
           navigate("/adminsignin");
           setMobileMenuOpen(false);
+          setShowNotificationDropdown(false);
         } else {
           navigate("/adminsignin");
         }
@@ -390,6 +601,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
+    setShowNotificationDropdown(false); // Close notification dropdown when opening mobile menu
   };
 
   const addHoverEffect = (e, isActive, isLogout = false) => {
@@ -412,162 +624,204 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       e.target.style.transform = "translateY(0) scale(1)";
       e.target.style.boxShadow = "none";
       if (!isLogout) {
-        e.target.style.background = "#ffffff";
+        e.target.style.background = scrolled 
+          ? "rgba(255, 255, 255, 0.9)" 
+          : "rgba(255, 255, 255, 0.2)";
       }
     }
   };
 
-  return (
-    <div style={styles.navbar}>
-      {isMobile ? (
-        <>
-          <div style={styles.mobileHeader}>
-            <img src="./Images/Logo.png" alt="LOGO" style={styles.logoImgStyle} />
-            <button
-              style={styles.mobileMenuButton}
-              onClick={toggleMobileMenu}
-              onMouseEnter={(e) => {
-                e.target.style.background = "rgba(255, 255, 255, 0.3)";
-                e.target.style.transform = "scale(1.1)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = "rgba(255, 255, 255, 0.2)";
-                e.target.style.transform = "scale(1)";
-              }}
-            >
-              ☰
-            </button>
-          </div>
+  // Notification badge component
+  const NotificationBadge = ({ count, isMobile = false }) => {
+    if (isLoadingNotifications) {
+      return React.createElement('div', { style: styles.notificationLoader });
+    }
+    
+    if (count > 0) {
+      const badgeStyle = isMobile ? styles.notificationBadgeMobile : styles.notificationBadge;
+      return React.createElement('div', {
+        style: badgeStyle,
+        onClick: (e) => {
+          e.stopPropagation();
+          handleNotificationClick(e);
+        },
+        onMouseEnter: (e) => {
+          e.target.style.transform = "scale(1.1)";
+          e.target.style.boxShadow = "0 6px 20px rgba(239, 68, 68, 0.6), 0 0 0 2px white";
+        },
+        onMouseLeave: (e) => {
+          e.target.style.transform = "scale(1)";
+          e.target.style.boxShadow = isMobile ? 
+            "0 2px 8px rgba(239, 68, 68, 0.4)" : 
+            "0 4px 12px rgba(239, 68, 68, 0.4), 0 0 0 2px white";
+        },
+        title: `${count} pending offer${count !== 1 ? 's' : ''} - Click to view and mark as seen`
+      }, count > 99 ? "99+" : count);
+    }
+    
+    return null;
+  };
 
-          <div style={styles.mobileMenuOverlay} onClick={() => setMobileMenuOpen(false)} />
+  return React.createElement('div', { style: styles.navbar },
+    isMobile ? [
+      React.createElement('div', { key: 'mobile-header', style: styles.mobileHeader },
+        React.createElement('img', { src: "./Images/Logo.png", alt: "LOGO", style: styles.logoImgStyle }),
+        React.createElement('button', {
+          style: styles.mobileMenuButton,
+          onClick: toggleMobileMenu,
+          onMouseEnter: (e) => {
+            e.target.style.background = "rgba(255, 255, 255, 0.3)";
+            e.target.style.transform = "scale(1.1)";
+          },
+          onMouseLeave: (e) => {
+            e.target.style.background = "rgba(255, 255, 255, 0.2)";
+            e.target.style.transform = "scale(1)";
+          }
+        }, '☰')
+      ),
+      
+      React.createElement('div', { 
+        key: 'mobile-overlay',
+        style: styles.mobileMenuOverlay, 
+        onClick: () => setMobileMenuOpen(false) 
+      }),
 
-          <div style={styles.mobileMenu}>
-            <button
-              style={styles.mobileCloseButton}
-              onClick={() => setMobileMenuOpen(false)}
-              onMouseEnter={(e) => {
-                e.target.style.background = "rgba(255, 255, 255, 0.3)";
-                e.target.style.transform = "rotate(90deg)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = "rgba(255, 255, 255, 0.2)";
-                e.target.style.transform = "rotate(0deg)";
-              }}
-            >
-              ✕
-            </button>
+      React.createElement('div', { key: 'mobile-menu', style: styles.mobileMenu },
+        React.createElement('button', {
+          style: styles.mobileCloseButton,
+          onClick: () => setMobileMenuOpen(false),
+          onMouseEnter: (e) => {
+            e.target.style.background = "rgba(255, 255, 255, 0.3)";
+            e.target.style.transform = "rotate(90deg)";
+          },
+          onMouseLeave: (e) => {
+            e.target.style.background = "rgba(255, 255, 255, 0.2)";
+            e.target.style.transform = "rotate(0deg)";
+          }
+        }, '✕'),
 
-            <div style={styles.mobileMenuHeader}>
-              <div style={{...styles.userInfoBox, background: "rgba(255, 255, 255, 0.2)", border: "1px solid rgba(255, 255, 255, 0.3)"}}>
-                <div style={styles.userIcon}>👤</div>
-                <div>
-                  <div style={{...styles.userName, color: "#ffffff"}}>
-                    {adminUser?.username || adminUser?.name || "Admin"}
-                  </div>
-                </div>
-              </div>
-            </div>
+        React.createElement('div', { style: styles.mobileMenuHeader },
+          React.createElement('div', {
+            style: {
+              ...styles.userInfoBox,
+              background: "rgba(255, 255, 255, 0.2)",
+              border: "1px solid rgba(255, 255, 255, 0.3)"
+            }
+          },
+            React.createElement('div', { style: styles.userIcon }, '👤'),
+            React.createElement('div', null,
+              React.createElement('div', {
+                style: { ...styles.userName, color: "#ffffff" }
+              }, adminUser?.username || adminUser?.name || "Admin")
+            )
+          )
+        ),
 
-            <div style={styles.mobileMenuContent}>
-              <button
-                style={isActiveRoute("/usershowpage") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
-                onClick={handleDashboardNavigation}
-                onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/usershowpage"))}
-                onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/usershowpage"))}
-              >
-                <span style={styles.menuItemIcon}>📊</span>
-                <span>Dashboard</span>
-              </button>
+        React.createElement('div', { style: styles.mobileMenuContent },
+          React.createElement('button', {
+            style: isActiveRoute("/usershowpage") ? styles.mobileMenuItemActive : styles.mobileMenuItem,
+            onClick: handleDashboardNavigation,
+            onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/usershowpage")),
+            onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/usershowpage"))
+          },
+            React.createElement('span', { style: styles.menuItemIcon }, '📊'),
+            React.createElement('span', null, 'Dashboard')
+          ),
 
-              <button
-                style={isActiveRoute("/detailsstats") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
-                onClick={handleStatsNavigation}
-                onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/detailsstats"))}
-                onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/detailsstats"))}
-              >
-                <span style={styles.menuItemIcon}>📈</span>
-                <span>Detailed Statistics</span>
-              </button>
+          React.createElement('button', {
+            style: isActiveRoute("/detailsstats") ? styles.mobileMenuItemActive : styles.mobileMenuItem,
+            onClick: handleStatsNavigation,
+            onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/detailsstats")),
+            onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/detailsstats"))
+          },
+            React.createElement('span', { style: styles.menuItemIcon }, '📈'),
+            React.createElement('span', null, 'Detailed Statistics')
+          ),
 
-              <button
-                style={isActiveRoute("/admin/offers") ? styles.mobileMenuItemActive : styles.mobileMenuItem}
-                onClick={handleOffersNavigation}
-                onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/admin/offers"))}
-                onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/admin/offers"))}
-              >
-                <span style={styles.menuItemIcon}>🎁</span>
-                <span>Offers Details</span>
-              </button>
+          React.createElement('div', { style: styles.navButtonContainer },
+            React.createElement('button', {
+              style: isActiveRoute("/admin/offers") ? styles.mobileMenuItemActive : styles.mobileMenuItem,
+              onClick: handleOffersNavigation,
+              onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/admin/offers")),
+              onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/admin/offers"))
+            },
+              React.createElement('span', { style: styles.menuItemIcon }, '🎁'),
+              React.createElement('span', null, 'Offers Details')
+            ),
+            React.createElement(NotificationBadge, { count: pendingOffersCount, isMobile: true })
+          ),
 
-              <button
-                style={styles.logoutButton}
-                onClick={handleLogout}
-                onMouseEnter={(e) => addHoverEffect(e, false, true)}
-                onMouseLeave={(e) => removeHoverEffect(e, false, true)}
-              >
-                <span style={styles.logoutIcon}>🚪</span>
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </>
-      ) : (
-        <div style={styles.header}>
-          <div style={styles.headerTop}>
-            <img src="./Images/Logo.png" alt="LOGO" style={styles.logoImgStyle} />
-            <div style={styles.rightSection}>
-              <div style={styles.userInfoBox}>
-                <div style={styles.userIcon}>👤</div>
-                <div>
-                  <div style={styles.userName}>
-                    {adminUser?.username || adminUser?.name || "Admin"}
-                  </div>
-                </div>
-              </div>
+          React.createElement('button', {
+            style: styles.logoutButton,
+            onClick: handleLogout,
+            onMouseEnter: (e) => addHoverEffect(e, false, true),
+            onMouseLeave: (e) => removeHoverEffect(e, false, true)
+          },
+            React.createElement('span', { style: styles.logoutIcon }, '🚪'),
+            React.createElement('span', null, 'Logout')
+          )
+        )
+      )
+    ] : 
+    React.createElement('div', { style: styles.header },
+      React.createElement('div', { style: styles.headerTop },
+        React.createElement('img', { src: "./Images/Logo.png", alt: "LOGO", style: styles.logoImgStyle }),
+        React.createElement('div', { style: styles.rightSection },
+          React.createElement('div', { style: styles.userInfoBox },
+            React.createElement('div', { style: styles.userIcon }, '👤'),
+            React.createElement('div', null,
+              React.createElement('div', { style: styles.userName },
+                adminUser?.username || adminUser?.name || "Admin"
+              )
+            )
+          ),
+          React.createElement('button', {
+            style: styles.desktopLogoutButton,
+            onClick: handleLogout,
+            onMouseEnter: (e) => addHoverEffect(e, false, true),
+            onMouseLeave: (e) => removeHoverEffect(e, false, true)
+          },
+            React.createElement('span', { style: styles.logoutIcon }, '🚪'),
+            React.createElement('span', null, 'Logout')
+          )
+        )
+      ),
 
-              <button
-                style={styles.desktopLogoutButton}
-                onClick={handleLogout}
-                onMouseEnter={(e) => addHoverEffect(e, false, true)}
-                onMouseLeave={(e) => removeHoverEffect(e, false, true)}
-              >
-                <span style={styles.logoutIcon}>🚪</span>
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
+      React.createElement('div', { style: styles.navButtonsContainer },
+        React.createElement('button', {
+          style: isActiveRoute("/usershowpage") ? styles.desktopNavButtonActive : styles.desktopNavButton,
+          onClick: handleDashboardNavigation,
+          onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/usershowpage")),
+          onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/usershowpage"))
+        }, '📊 User Dashboard'),
 
-          <div style={styles.navButtonsContainer}>
-            <button
-              style={isActiveRoute("/usershowpage") ? styles.desktopNavButtonActive : styles.desktopNavButton}
-              onClick={handleDashboardNavigation}
-              onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/usershowpage"))}
-              onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/usershowpage"))}
-            >
-              📊 User Dashboard
-            </button>
+        React.createElement('button', {
+          style: isActiveRoute("/detailsstats") ? styles.desktopNavButtonActive : styles.desktopNavButton,
+          onClick: handleStatsNavigation,
+          onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/detailsstats")),
+          onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/detailsstats"))
+        }, '📈 Detailed Statistics'),
 
-            <button
-              style={isActiveRoute("/detailsstats") ? styles.desktopNavButtonActive : styles.desktopNavButton}
-              onClick={handleStatsNavigation}
-              onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/detailsstats"))}
-              onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/detailsstats"))}
-            >
-              📈 Detailed Statistics
-            </button>
-
-            <button
-              style={isActiveRoute("/admin/offers") ? styles.desktopNavButtonActive : styles.desktopNavButton}
-              onClick={handleOffersNavigation}
-              onMouseEnter={(e) => addHoverEffect(e, isActiveRoute("/admin/offers"))}
-              onMouseLeave={(e) => removeHoverEffect(e, isActiveRoute("/admin/offers"))}
-            >
-              🎁 Offers Details
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+        React.createElement('div', { 
+          style: styles.navButtonContainer,
+          onClick: (e) => e.stopPropagation() // Prevent event bubbling
+        },
+          React.createElement('button', {
+            style: isActiveRoute("/admin/offers") ? styles.desktopNavButtonActive : styles.desktopNavButton,
+            onClick: handleOffersNavigation,
+            onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/admin/offers")),
+            onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/admin/offers"))
+          }, '🎁 Offers Details'),
+          React.createElement(NotificationBadge, { count: pendingOffersCount }),
+          // Notification Dropdown
+          showNotificationDropdown && React.createElement(NotificationDropdown, {
+            isOpen: showNotificationDropdown,
+            onClose: () => setShowNotificationDropdown(false),
+            onNavigateToOffers: handleOffersNavigation
+          })
+        )
+      )
+    )
   );
 };
 

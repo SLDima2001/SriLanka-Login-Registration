@@ -163,34 +163,35 @@ const AdminOffersManagement = () => {
     },
     filterTabs: {
       display: 'flex',
-      gap: '0.75rem',
+      gap: '0.5rem',
       marginBottom: '2rem',
       background: 'white',
-      padding: '0.75rem',
-      borderRadius: '16px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1)',
+      padding: '0.5rem',
+      borderRadius: '20px',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
       overflowX: 'auto',
-      border: '1px solid #e2e8f0',
+      border: '1px solid #e5e7eb',
     },
     filterTab: {
-      padding: '0.75rem 1.5rem',
+      padding: '0.875rem 1.75rem',
       border: 'none',
       background: 'transparent',
-      color: '#64748b',
-      borderRadius: '12px',
+      color: '#6b7280',
+      borderRadius: '16px',
       cursor: 'pointer',
       fontWeight: '600',
       fontSize: '0.875rem',
-      transition: 'all 0.3s ease',
+      transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
       whiteSpace: 'nowrap',
       position: 'relative',
       overflow: 'hidden',
+      minWidth: 'fit-content',
     },
     filterTabActive: {
-      background: 'linear-gradient(135deg, #667eea, #764ba2)',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       color: 'white',
-      boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-      transform: 'translateY(-2px)',
+      boxShadow: '0 8px 24px rgba(102, 126, 234, 0.35), 0 0 0 1px rgba(102, 126, 234, 0.1)',
+      transform: 'scale(1.05)',
     },
     offersList: {
       display: 'flex',
@@ -380,51 +381,62 @@ const AdminOffersManagement = () => {
       display: 'flex',
       gap: '0.75rem',
       justifyContent: 'center',
-      paddingTop: '1.5rem',
+      paddingTop: '2rem',
       borderTop: '2px solid #e2e8f0',
       flexWrap: 'wrap',
     },
+    // Enhanced Button Styles
     btn: {
-      padding: '0.75rem 1.5rem',
+      position: 'relative',
+      padding: '0.875rem 2rem',
       border: 'none',
-      borderRadius: '12px',
-      fontWeight: '600',
+      borderRadius: '14px',
+      fontWeight: '700',
       fontSize: '0.875rem',
       cursor: 'pointer',
-      transition: 'all 0.3s ease',
+      transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
-      minWidth: '120px',
+      minWidth: '140px',
       textDecoration: 'none',
-      position: 'relative',
       overflow: 'hidden',
       letterSpacing: '0.025em',
+      textTransform: 'uppercase',
+      fontFamily: 'inherit',
+      outline: 'none',
+      backgroundSize: '200% 100%',
+      backgroundPosition: 'left center',
     },
     btnApprove: {
-      background: 'linear-gradient(135deg, #10b981, #059669)',
+      background: 'linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%)',
       color: 'white',
-      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)',
+      boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+      border: '1px solid rgba(16, 185, 129, 0.3)',
     },
     btnDecline: {
-      background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%)',
       color: 'white',
-      boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
+      boxShadow: '0 8px 32px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+      border: '1px solid rgba(239, 68, 68, 0.3)',
     },
     btnEdit: {
-      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)',
       color: 'white',
-      boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)',
+      boxShadow: '0 8px 32px rgba(245, 158, 11, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+      border: '1px solid rgba(245, 158, 11, 0.3)',
     },
     btnDelete: {
-      background: 'linear-gradient(135deg, #64748b, #475569)',
+      background: 'linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%)',
       color: 'white',
-      boxShadow: '0 4px 12px rgba(100, 116, 139, 0.4)',
+      boxShadow: '0 8px 32px rgba(100, 116, 139, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+      border: '1px solid rgba(100, 116, 139, 0.3)',
     },
     btnSecondary: {
-      background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)',
+      background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 50%, #cbd5e1 100%)',
       color: '#475569',
-      boxShadow: '0 4px 12px rgba(148, 163, 184, 0.4)',
+      boxShadow: '0 8px 32px rgba(148, 163, 184, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+      border: '1px solid rgba(148, 163, 184, 0.3)',
     },
     modalOverlay: {
       position: 'fixed',
@@ -800,45 +812,33 @@ const AdminOffersManagement = () => {
     actions.push(
       <button
         key="edit"
-        style={styles.btnEdit}
+        style={{
+          ...styles.btn,
+          ...styles.btnEdit,
+          ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+        }}
         onClick={() => openEditModal(offer)}
         title="Edit offer details"
         disabled={processing}
-        onMouseOver={(e) => {
-          if (!processing) {
-            e.target.style.transform = 'translateY(-2px)';
-            e.target.style.boxShadow = '0 8px 25px rgba(245, 158, 11, 0.5)';
-          }
-        }}
-        onMouseOut={(e) => {
-          if (!processing) {
-            e.target.style.transform = 'translateY(0)';
-            e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
-          }
-        }}
+        className="btn-enhanced btn-edit"
       >
-        📝 {processing ? 'Processing...' : 'Edit'}
+        <span style={{ marginRight: '8px', fontSize: '1rem' }}>📝</span>
+        {processing ? 'Processing...' : 'Edit'}
       </button>,
       <button
         key="delete"
-        style={styles.btnDelete}
+        style={{
+          ...styles.btn,
+          ...styles.btnDelete,
+          ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+        }}
         onClick={() => handleDeleteOffer(offer._id)}
         title="Delete offer permanently"
         disabled={processing}
-        onMouseOver={(e) => {
-          if (!processing) {
-            e.target.style.transform = 'translateY(-2px)';
-            e.target.style.boxShadow = '0 8px 25px rgba(100, 116, 139, 0.5)';
-          }
-        }}
-        onMouseOut={(e) => {
-          if (!processing) {
-            e.target.style.transform = 'translateY(0)';
-            e.target.style.boxShadow = '0 4px 12px rgba(100, 116, 139, 0.4)';
-          }
-        }}
+        className="btn-enhanced btn-delete"
       >
-        🗑️ {processing ? 'Processing...' : 'Delete'}
+        <span style={{ marginRight: '8px', fontSize: '1rem' }}>🗑️</span>
+        {processing ? 'Processing...' : 'Delete'}
       </button>
     );
 
@@ -847,93 +847,69 @@ const AdminOffersManagement = () => {
       actions.unshift(
         <button
           key="approve"
-          style={styles.btnApprove}
+          style={{
+            ...styles.btn,
+            ...styles.btnApprove,
+            ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+          }}
           onClick={() => openActionModal(offer, 'approve')}
           title="Approve this offer"
           disabled={processing}
-          onMouseOver={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(16, 185, 129, 0.5)';
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
-            }
-          }}
+          className="btn-enhanced btn-approve"
         >
-          ✅ {processing ? 'Processing...' : 'Approve'}
+          <span style={{ marginRight: '8px', fontSize: '1rem' }}>✅</span>
+          {processing ? 'Processing...' : 'Approve'}
         </button>,
         <button
           key="decline"
-          style={styles.btnDecline}
+          style={{
+            ...styles.btn,
+            ...styles.btnDecline,
+            ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+          }}
           onClick={() => openActionModal(offer, 'decline')}
           title="Decline this offer"
           disabled={processing}
-          onMouseOver={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(239, 68, 68, 0.5)';
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
-            }
-          }}
+          className="btn-enhanced btn-decline"
         >
-          ❌ {processing ? 'Processing...' : 'Decline'}
+          <span style={{ marginRight: '8px', fontSize: '1rem' }}>❌</span>
+          {processing ? 'Processing...' : 'Decline'}
         </button>
       );
     } else if (offer.adminStatus === 'approved') {
       actions.unshift(
         <button
           key="decline"
-          style={styles.btnDecline}
+          style={{
+            ...styles.btn,
+            ...styles.btnDecline,
+            ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+          }}
           onClick={() => openActionModal(offer, 'decline')}
           title="Decline this approved offer"
           disabled={processing}
-          onMouseOver={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(239, 68, 68, 0.5)';
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
-            }
-          }}
+          className="btn-enhanced btn-decline"
         >
-          ❌ {processing ? 'Processing...' : 'Decline'}
+          <span style={{ marginRight: '8px', fontSize: '1rem' }}>❌</span>
+          {processing ? 'Processing...' : 'Decline'}
         </button>
       );
     } else if (offer.adminStatus === 'declined') {
       actions.unshift(
         <button
           key="approve"
-          style={styles.btnApprove}
+          style={{
+            ...styles.btn,
+            ...styles.btnApprove,
+            ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+          }}
           onClick={() => openActionModal(offer, 'approve')}
           title="Approve this declined offer"
           disabled={processing}
-          onMouseOver={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 8px 25px rgba(16, 185, 129, 0.5)';
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!processing) {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
-            }
-          }}
+          className="btn-enhanced btn-approve"
         >
-          ✅ {processing ? 'Processing...' : 'Re-approve'}
+          <span style={{ marginRight: '8px', fontSize: '1rem' }}>✅</span>
+          {processing ? 'Processing...' : 'Re-approve'}
         </button>
       );
     }
@@ -964,14 +940,6 @@ const AdminOffersManagement = () => {
     <div style={styles.container}>
       <NavBar adminUser={adminUser} logoutAdmin={logoutAdmin} />
       
-      <div style={styles.header}>
-        <div style={styles.headerOverlay}></div>
-        <div style={styles.headerContent}>
-          <h1 style={styles.headerTitle}>Admin Offers Management</h1>
-          <p style={styles.headerSubtitle}>Review, approve, edit, and manage all business offers</p>
-        </div>
-      </div>
-
       {/* Statistics Dashboard */}
       <div style={styles.statsContainer}>
         <div style={styles.statCard}>
@@ -1016,20 +984,7 @@ const AdminOffersManagement = () => {
               ...(filter === filterType ? styles.filterTabActive : {})
             }}
             onClick={() => setFilter(filterType)}
-            onMouseOver={(e) => {
-              if (filter !== filterType) {
-                e.target.style.backgroundColor = '#f1f5f9';
-                e.target.style.color = '#334155';
-                e.target.style.transform = 'translateY(-1px)';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (filter !== filterType) {
-                e.target.style.backgroundColor = 'transparent';
-                e.target.style.color = '#64748b';
-                e.target.style.transform = 'translateY(0)';
-              }
-            }}
+            className="filter-tab-enhanced"
           >
             {filterType === 'all' ? `All Offers (${offers.length})` :
               `${filterType.charAt(0).toUpperCase() + filterType.slice(1)} (${counts[filterType] || 0})`}
@@ -1194,14 +1149,7 @@ const AdminOffersManagement = () => {
               <button
                 style={styles.modalClose}
                 onClick={closeModal}
-                onMouseOver={(e) => {
-                  e.target.style.backgroundColor = '#f1f5f9';
-                  e.target.style.color = '#1e293b';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.backgroundColor = 'transparent';
-                  e.target.style.color = '#64748b';
-                }}
+                className="modal-close-enhanced"
               >
                 ×
               </button>
@@ -1252,14 +1200,7 @@ const AdminOffersManagement = () => {
                     ...(actionType === 'decline' && !adminComments.trim() ?
                       { borderColor: '#dc2626' } : {})
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  className="textarea-enhanced"
                 />
                 {actionType === 'decline' && !adminComments.trim() && (
                   <p style={styles.validationError}>
@@ -1271,21 +1212,14 @@ const AdminOffersManagement = () => {
 
             <div style={styles.modalFooter}>
               <button
-                style={styles.btnSecondary}
+                style={{
+                  ...styles.btn,
+                  ...styles.btnSecondary,
+                  ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+                }}
                 onClick={closeModal}
                 disabled={processing}
-                onMouseOver={(e) => {
-                  if (!processing) {
-                    e.target.style.transform = 'translateY(-1px)';
-                    e.target.style.boxShadow = '0 6px 20px rgba(148, 163, 184, 0.4)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!processing) {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(148, 163, 184, 0.4)';
-                  }
-                }}
+                className="btn-enhanced btn-secondary"
               >
                 Cancel
               </button>
@@ -1298,22 +1232,7 @@ const AdminOffersManagement = () => {
                 }}
                 onClick={handleAction}
                 disabled={processing || (actionType === 'decline' && !adminComments.trim())}
-                onMouseOver={(e) => {
-                  if (!processing && !(actionType === 'decline' && !adminComments.trim())) {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = actionType === 'approve' 
-                      ? '0 8px 25px rgba(16, 185, 129, 0.5)'
-                      : '0 8px 25px rgba(239, 68, 68, 0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!processing && !(actionType === 'decline' && !adminComments.trim())) {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = actionType === 'approve'
-                      ? '0 4px 12px rgba(16, 185, 129, 0.4)'
-                      : '0 4px 12px rgba(239, 68, 68, 0.4)';
-                  }
-                }}
+                className={`btn-enhanced ${actionType === 'approve' ? 'btn-approve' : 'btn-decline'}`}
               >
                 {processing ? (
                   <>
@@ -1321,7 +1240,12 @@ const AdminOffersManagement = () => {
                     Processing...
                   </>
                 ) : (
-                  `${actionType === 'approve' ? '✅ Approve' : '❌ Decline'} Offer`
+                  <>
+                    <span style={{ marginRight: '8px', fontSize: '1rem' }}>
+                      {actionType === 'approve' ? '✅' : '❌'}
+                    </span>
+                    {`${actionType === 'approve' ? 'Approve' : 'Decline'} Offer`}
+                  </>
                 )}
               </button>
             </div>
@@ -1340,14 +1264,7 @@ const AdminOffersManagement = () => {
               <button
                 style={styles.modalClose}
                 onClick={closeEditModal}
-                onMouseOver={(e) => {
-                  e.target.style.backgroundColor = '#f1f5f9';
-                  e.target.style.color = '#1e293b';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.backgroundColor = 'transparent';
-                  e.target.style.color = '#64748b';
-                }}
+                className="modal-close-enhanced"
               >
                 ×
               </button>
@@ -1382,14 +1299,7 @@ const AdminOffersManagement = () => {
                   placeholder="Enter offer title"
                   style={styles.input}
                   required
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  className="input-enhanced"
                 />
               </div>
 
@@ -1402,14 +1312,7 @@ const AdminOffersManagement = () => {
                   placeholder="e.g., 20%, $50, Buy 1 Get 1"
                   style={styles.input}
                   required
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  className="input-enhanced"
                 />
               </div>
 
@@ -1421,14 +1324,7 @@ const AdminOffersManagement = () => {
                   onChange={(e) => setEditOfferData({ ...editOfferData, category: e.target.value })}
                   placeholder="Enter category (optional)"
                   style={styles.input}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  className="input-enhanced"
                 />
               </div>
 
@@ -1439,14 +1335,7 @@ const AdminOffersManagement = () => {
                   value={editOfferData.startDate}
                   onChange={(e) => setEditOfferData({ ...editOfferData, startDate: e.target.value })}
                   style={styles.input}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  className="input-enhanced"
                 />
               </div>
 
@@ -1457,14 +1346,7 @@ const AdminOffersManagement = () => {
                   value={editOfferData.endDate}
                   onChange={(e) => setEditOfferData({ ...editOfferData, endDate: e.target.value })}
                   style={styles.input}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea';
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  className="input-enhanced"
                 />
               </div>
 
@@ -1483,44 +1365,27 @@ const AdminOffersManagement = () => {
 
             <div style={styles.modalFooter}>
               <button
-                style={styles.btnSecondary}
+                style={{
+                  ...styles.btn,
+                  ...styles.btnSecondary,
+                  ...(processing ? { opacity: '0.6', cursor: 'not-allowed' } : {})
+                }}
                 onClick={closeEditModal}
                 disabled={processing}
-                onMouseOver={(e) => {
-                  if (!processing) {
-                    e.target.style.transform = 'translateY(-1px)';
-                    e.target.style.boxShadow = '0 6px 20px rgba(148, 163, 184, 0.4)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!processing) {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(148, 163, 184, 0.4)';
-                  }
-                }}
+                className="btn-enhanced btn-secondary"
               >
                 Cancel
               </button>
               <button
                 style={{
+                  ...styles.btn,
                   ...styles.btnEdit,
                   ...(processing || !editOfferData.title || !editOfferData.discount ?
                     { opacity: '0.6', cursor: 'not-allowed' } : {})
                 }}
                 onClick={handleEditOffer}
                 disabled={processing || !editOfferData.title || !editOfferData.discount}
-                onMouseOver={(e) => {
-                  if (!processing && editOfferData.title && editOfferData.discount) {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 8px 25px rgba(245, 158, 11, 0.5)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!processing && editOfferData.title && editOfferData.discount) {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
-                  }
-                }}
+                className="btn-enhanced btn-edit"
               >
                 {processing ? (
                   <>
@@ -1528,7 +1393,10 @@ const AdminOffersManagement = () => {
                     Updating...
                   </>
                 ) : (
-                  '📝 Update Offer'
+                  <>
+                    <span style={{ marginRight: '8px', fontSize: '1rem' }}>📝</span>
+                    Update Offer
+                  </>
                 )}
               </button>
             </div>
@@ -1536,7 +1404,7 @@ const AdminOffersManagement = () => {
         </div>
       )}
 
-      {/* CSS Animations and Responsive Styles */}
+      {/* Enhanced CSS Animations and Button Styles */}
       <style>
         {`
           @keyframes spin {
@@ -1566,7 +1434,156 @@ const AdminOffersManagement = () => {
             }
           }
 
+          @keyframes buttonPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+          }
+
+          @keyframes shimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+          }
+
+          @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(102, 126, 234, 0.6); }
+          }
+
+          /* Enhanced Button Styles */
+          .btn-enhanced {
+            position: relative;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            will-change: transform;
+          }
+
+          .btn-enhanced::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+              90deg,
+              transparent,
+              rgba(255, 255, 255, 0.3),
+              transparent
+            );
+            transition: left 0.5s;
+            z-index: 1;
+          }
+
+          .btn-enhanced::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.3s ease, height 0.3s ease;
+            z-index: 0;
+          }
+
+          .btn-enhanced:hover::before {
+            left: 100%;
+          }
+
+          .btn-enhanced:active::after {
+            width: 300px;
+            height: 300px;
+          }
+
+          .btn-enhanced:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            animation: buttonPulse 0.6s ease-in-out infinite alternate;
+          }
+
+          .btn-approve:hover:not(:disabled) {
+            box-shadow: 
+              0 12px 40px rgba(16, 185, 129, 0.5),
+              0 0 0 1px rgba(16, 185, 129, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            background: linear-gradient(135deg, #059669 0%, #047857 50%, #065f46 100%);
+          }
+
+          .btn-decline:hover:not(:disabled) {
+            box-shadow: 
+              0 12px 40px rgba(239, 68, 68, 0.5),
+              0 0 0 1px rgba(239, 68, 68, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
+          }
+
+          .btn-edit:hover:not(:disabled) {
+            box-shadow: 
+              0 12px 40px rgba(245, 158, 11, 0.5),
+              0 0 0 1px rgba(245, 158, 11, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            background: linear-gradient(135deg, #d97706 0%, #b45309 50%, #92400e 100%);
+          }
+
+          .btn-delete:hover:not(:disabled) {
+            box-shadow: 
+              0 12px 40px rgba(100, 116, 139, 0.5),
+              0 0 0 1px rgba(100, 116, 139, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            background: linear-gradient(135deg, #475569 0%, #334155 50%, #1e293b 100%);
+          }
+
+          .btn-secondary:hover:not(:disabled) {
+            box-shadow: 
+              0 12px 40px rgba(148, 163, 184, 0.4),
+              0 0 0 1px rgba(148, 163, 184, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%);
+            color: #334155;
+          }
+
+          /* Filter Tab Enhancements */
+          .filter-tab-enhanced {
+            position: relative;
+            z-index: 1;
+          }
+
+          .filter-tab-enhanced:hover:not(.active) {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #334155;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(148, 163, 184, 0.3);
+          }
+
+          /* Modal Close Button Enhancement */
+          .modal-close-enhanced:hover {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            color: #1e293b;
+            transform: scale(1.1) rotate(90deg);
+          }
+
+          /* Form Input Enhancements */
+          .input-enhanced:focus,
+          .textarea-enhanced:focus {
+            border-color: #667eea;
+            box-shadow: 
+              0 0 0 3px rgba(102, 126, 234, 0.1),
+              0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-1px);
+          }
+
+          .input-enhanced:hover,
+          .textarea-enhanced:hover {
+            border-color: #94a3b8;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          }
+
+          /* Card Hover Effects */
           .offer-card {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             animation: fadeIn 0.3s ease-out;
           }
 
@@ -1589,8 +1606,47 @@ const AdminOffersManagement = () => {
             background: linear-gradient(135deg, #5a6fd8, #6c42a0);
           }
 
+          /* Button Focus States for Accessibility */
+          .btn-enhanced:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+            box-shadow: 
+              0 0 0 4px rgba(102, 126, 234, 0.2),
+              0 8px 32px rgba(102, 126, 234, 0.4);
+          }
+
+          /* Enhanced Ripple Effect */
+          @keyframes ripple {
+            0% {
+              transform: scale(0);
+              opacity: 1;
+            }
+            100% {
+              transform: scale(4);
+              opacity: 0;
+            }
+          }
+
+          .btn-enhanced:active {
+            transform: scale(0.98);
+          }
+
+          /* Loading Button State */
+          .btn-enhanced:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none !important;
+            animation: none !important;
+          }
+
           /* Mobile responsive styles */
           @media (max-width: 768px) {
+            .btn-enhanced {
+              min-width: 120px;
+              padding: 0.75rem 1.5rem;
+              font-size: 0.8rem;
+            }
+
             .container {
               padding: 1rem !important;
             }
@@ -1632,7 +1688,7 @@ const AdminOffersManagement = () => {
               gap: 0.75rem !important;
             }
             
-            .btn {
+            .btn-enhanced {
               width: 100% !important;
               min-width: auto !important;
             }
@@ -1661,7 +1717,7 @@ const AdminOffersManagement = () => {
               grid-template-columns: 1fr !important;
             }
             
-            .filter-tab {
+            .filter-tab-enhanced {
               min-width: 100px !important;
               padding: 0.5rem 1rem !important;
             }
@@ -1675,74 +1731,29 @@ const AdminOffersManagement = () => {
               min-width: 100% !important;
               margin-bottom: 1rem;
             }
+
+            .btn-enhanced {
+              padding: 0.7rem 1.2rem;
+              font-size: 0.75rem;
+              border-radius: 12px;
+            }
           }
 
           /* Hover effects for desktop only */
           @media (min-width: 769px) {
             .offer-card:hover {
-              transform: translateY(-4px) !important;
-              box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15) !important;
+              transform: translateY(-6px) !important;
+              box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(102, 126, 234, 0.1) !important;
             }
             
             .stat-card:hover {
-              transform: translateY(-2px) !important;
-              box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+              transform: translateY(-4px) !important;
+              box-shadow: 
+                0 12px 40px rgba(0, 0, 0, 0.12),
+                0 0 0 1px rgba(102, 126, 234, 0.1) !important;
             }
-          }
-
-          /* Focus styles for accessibility */
-          .btn:focus,
-          .filter-tab:focus,
-          .modal-close:focus,
-          .input:focus,
-          .textarea:focus {
-            outline: 2px solid #667eea !important;
-            outline-offset: 2px !important;
-          }
-
-          /* Loading animation */
-          .loading-shimmer {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: shimmer 2s infinite;
-          }
-
-          @keyframes shimmer {
-            0% {
-              background-position: -200% 0;
-            }
-            100% {
-              background-position: 200% 0;
-            }
-          }
-
-          /* Smooth transitions */
-          * {
-            transition: all 0.3s ease;
-          }
-
-          /* Button ripple effect */
-          .btn {
-            position: relative;
-            overflow: hidden;
-          }
-
-          .btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            transform: translate(-50%, -50%);
-            transition: width 0.3s, height 0.3s;
-          }
-
-          .btn:active::before {
-            width: 300px;
-            height: 300px;
           }
 
           /* Enhanced gradient animations */
@@ -1757,7 +1768,7 @@ const AdminOffersManagement = () => {
             animation: gradientShift 6s ease infinite;
           }
 
-          /* Card entrance animations */
+          /* Card entrance animations with stagger */
           .offer-card {
             animation: slideInUp 0.6s ease-out;
             animation-fill-mode: both;
@@ -1805,6 +1816,105 @@ const AdminOffersManagement = () => {
             0% { opacity: 1; }
             50% { opacity: 0.7; }
             100% { opacity: 1; }
+          }
+
+          /* Button Loading Animation */
+          .btn-enhanced.loading {
+            pointer-events: none;
+            position: relative;
+          }
+
+          .btn-enhanced.loading::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            margin: -8px 0 0 -8px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+
+          /* Micro-interactions */
+          .btn-enhanced {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+
+          .btn-enhanced:active:not(:disabled) {
+            transform: translateY(-1px) scale(0.98);
+            transition: all 0.1s ease;
+          }
+
+          /* Enhanced shadow depths */
+          .btn-approve {
+            box-shadow: 
+              0 4px 14px 0 rgba(16, 185, 129, 0.39),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          }
+
+          .btn-decline {
+            box-shadow: 
+              0 4px 14px 0 rgba(239, 68, 68, 0.39),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          }
+
+          .btn-edit {
+            box-shadow: 
+              0 4px 14px 0 rgba(245, 158, 11, 0.39),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          }
+
+          .btn-delete {
+            box-shadow: 
+              0 4px 14px 0 rgba(100, 116, 139, 0.39),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          }
+
+          .btn-secondary {
+            box-shadow: 
+              0 4px 14px 0 rgba(148, 163, 184, 0.29),
+              inset 0 1px 0 rgba(255, 255, 255, 0.6);
+          }
+
+          /* Smooth color transitions */
+          * {
+            transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+          }
+
+          /* Enhanced focus indicators */
+          .filter-tab-enhanced:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+          }
+
+          /* Button text animation */
+          .btn-enhanced span {
+            transition: all 0.2s ease;
+          }
+
+          .btn-enhanced:hover:not(:disabled) span {
+            transform: translateY(-1px);
+          }
+
+          /* Improved accessibility */
+          @media (prefers-reduced-motion: reduce) {
+            .btn-enhanced,
+            .filter-tab-enhanced,
+            .offer-card,
+            .modal {
+              animation: none !important;
+              transition: none !important;
+            }
+          }
+
+          /* High contrast mode support */
+          @media (prefers-contrast: high) {
+            .btn-enhanced {
+              border: 2px solid currentColor;
+            }
           }
         `}
       </style>

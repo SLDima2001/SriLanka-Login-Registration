@@ -22,6 +22,7 @@ import DetailedStats from "../pages/DetailedStats.jsx";
 import BusinessUserProfile from "../pages/BusinessUserProfile.jsx";
 import PayHereNotify from "../pages/PayHereNotify.jsx";
 import AdminOffersManagement from "../pages/AdminOffersManagement.jsx";
+import AdminSubscriptionsManagement from "../pages/Adminsubscriptionmanagement.jsx";
 
 // Loading component
 const LoadingSpinner = () => (
@@ -170,7 +171,10 @@ const App = () => {
         path="/admin/offers" 
         element={<AdminProtectedRoute element={<AdminOffersManagement />} />} 
       />
-      
+      <Route 
+        path="admin/subscriptionmanagemnt" 
+        element={<AdminProtectedRoute element={<AdminSubscriptionsManagement/>} />} 
+      />
       {/* Catch all route - redirect to signin */}
       <Route path="*" element={<Navigate to="/signin" replace />} />
     </Routes>

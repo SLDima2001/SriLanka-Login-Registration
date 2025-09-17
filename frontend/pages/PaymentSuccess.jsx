@@ -18,48 +18,49 @@ function PaymentSuccess() {
   const [retryCount, setRetryCount] = useState(0);
 
   // Verify payment status
-  useEffect(() => {
-    const verifyPayment = async () => {
-      if (!orderId) {
-        setVerificationStatus('success'); // Free plan or direct success
-        return;
-      }
+// In PaymentSuccess.js - enhance the verification logic
+useEffect(() => {
+  const verifyPayment = async () => {
+    if (!orderId) {
+      setVerificationStatus('success');
+      return;
+    }
 
-      try {
-        console.log('Verifying payment status for order:', orderId);
-        
-        const response = await fetch(`http://localhost:5555/check-payment-status/${orderId}`);
-        const data = await response.json();
-        
-        if (data.success) {
-          if (data.status === 'completed' && data.subscription) {
-            console.log('Payment verification successful');
-            setSubscription(data.subscription);
-            setVerificationStatus('success');
-          } else if (data.status === 'pending') {
-            console.log('Payment still processing...');
-            // Retry after delay if we haven't exceeded retry limit
-            if (retryCount < 10) { // Max 10 retries (about 30 seconds)
-              setTimeout(() => {
-                setRetryCount(prev => prev + 1);
-              }, 3000);
-            } else {
-              setError('Payment verification timed out. Please contact support if you were charged.');
-              setVerificationStatus('failed');
-            }
+    try {
+      console.log('Verifying payment status for order:', orderId);
+      
+      const response = await fetch(`http://localhost:5555/check-payment-status/${orderId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        if (data.status === 'completed' && data.subscription) {
+          console.log('Payment verification successful');
+          setSubscription(data.subscription);
+          setVerificationStatus('success');
+        } else if (data.status === 'pending') {
+          console.log('Payment still processing...');
+          // Increase retry limit since backend is now more reliable
+          if (retryCount < 15) { // Increased from 10 to 15
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 3000);
+          } else {
+            setError('Payment verification timed out. Please contact support if you were charged.');
+            setVerificationStatus('failed');
           }
-        } else {
-          throw new Error(data.message || 'Failed to verify payment');
         }
-      } catch (error) {
-        console.error('Payment verification error:', error);
-        setError('Failed to verify payment status. Please contact support if you were charged.');
-        setVerificationStatus('failed');
+      } else {
+        throw new Error(data.message || 'Failed to verify payment');
       }
-    };
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      setError('Failed to verify payment status. Please contact support if you were charged.');
+      setVerificationStatus('failed');
+    }
+  };
 
-    verifyPayment();
-  }, [orderId, retryCount]);
+  verifyPayment();
+}, [orderId, retryCount]);
 
   const getStatusContent = () => {
     if (verificationStatus === 'verifying') {

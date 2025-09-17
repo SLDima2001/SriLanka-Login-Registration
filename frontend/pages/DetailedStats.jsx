@@ -466,7 +466,21 @@ const DetailedStats = () => {
         <h1 style={styles.title}>📊 Detailed Statistics</h1>
         <p style={styles.subtitle}>Comprehensive analytics and insights</p>
       </div>
-
+<button
+            onClick={() => navigate('/admin/subscriptionmanagemnt')}
+            style={{
+              marginTop: '15px',
+              padding: '10px 20px',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontSize: '16px'
+            }}
+          >
+            Back to Profile
+          </button>
       {/* Date Filter */}
       <div style={styles.dateFilter}>
         {[

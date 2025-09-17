@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import { AuthContext } from '../src/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { subscriptionUtils } from '../src/subscriptionUtils';
+import SubscriptionCancellationManager from './SubscriptionCancellationManager'; // Import the new component
 
 function SubscriptionPage() {
   const { user, isAuthLoading } = useContext(AuthContext);
@@ -12,9 +13,10 @@ function SubscriptionPage() {
     email: '',
     phoneNumber: '',
     selectedPlan: '',
-    billingCycle: 'monthly', // Always monthly now
+    billingCycle: 'monthly',
     agreement: false,
-    paymentMethod: 'payhere'
+    paymentMethod: 'payhere',
+    enableAutoRenew: true // Always enabled by default
   });
 
   const [plans] = useState([
@@ -24,15 +26,23 @@ function SubscriptionPage() {
       monthlyPrice: 0,
       features: ['1 highlight ad', 'Standard position in listings', 'Add one discount or promo code', 'Set start and end date for promotions'],
       description: 'Perfect for individuals getting started',
-      popular: false
+      popular: false,
+      autoRenewalAvailable: false
     },
     {
       id: 2,
       name: 'Premium Plan',
       monthlyPrice: 1500,
-      features: ['3 highlight ads', 'Priority position in listings and category pages', 'Multiple Promotions can be added', 'Premium Features'],
-      description: 'Ideal for growing businesses',
-      popular: true
+      features: [
+        '3 highlight ads', 
+        'Priority position in listings and category pages', 
+        'Multiple Promotions can be added', 
+        'Premium Features',
+        '✨ Auto-renewal included'
+      ],
+      description: 'Ideal for growing businesses with automatic monthly billing included',
+      popular: true,
+      autoRenewalAvailable: true
     }
   ]);
 
@@ -43,36 +53,42 @@ function SubscriptionPage() {
   const [showTerms, setShowTerms] = useState(false);
   const modalRef = useRef(null);
 
-  // New state for subscription management
+  // Enhanced state for subscription management
   const [userSubscription, setUserSubscription] = useState(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [cancellationInfo, setCancellationInfo] = useState(null);
+  const [isInGracePeriod, setIsInGracePeriod] = useState(false);
 
-  // Check user subscription status on component mount
+  // Enhanced subscription check with cancellation status
   useEffect(() => {
     const checkSubscriptionStatus = async () => {
       if (user && user.email) {
         try {
           setSubscriptionLoading(true);
-          const subscriptionInfo = await subscriptionUtils.checkUserSubscription(user.email, user.userId);
+          // Use enhanced subscription check that includes cancellation status
+          const subscriptionInfo = await subscriptionUtils.checkUserSubscriptionWithCancellation(user.email, user.userId);
+          
           setHasActiveSubscription(subscriptionInfo.hasActiveSubscription);
           setUserSubscription(subscriptionInfo.subscription);
+          setCancellationInfo(subscriptionInfo.cancellationInfo);
+          setIsInGracePeriod(subscriptionInfo.isInGracePeriod || false);
 
           // Auto-select premium plan if user has expired premium or is free user
           if (subscriptionInfo.subscription) {
             const plan = subscriptionInfo.subscription.plan || subscriptionInfo.subscription.planName;
             if (plan && plan.toLowerCase() === 'free') {
-              // Free user can upgrade to premium
-              setFormData(prev => ({ ...prev, selectedPlan: '2' }));
+              setFormData(prev => ({ ...prev, selectedPlan: '2', enableAutoRenew: true }));
             } else if (plan && plan.toLowerCase() === 'premium' && isSubscriptionExpired(subscriptionInfo.subscription)) {
-              // Expired premium user can renew premium
-              setFormData(prev => ({ ...prev, selectedPlan: '2' }));
+              setFormData(prev => ({ ...prev, selectedPlan: '2', enableAutoRenew: true }));
             }
           }
         } catch (error) {
           console.error('Error checking subscription:', error);
           setHasActiveSubscription(false);
           setUserSubscription(null);
+          setCancellationInfo(null);
+          setIsInGracePeriod(false);
         } finally {
           setSubscriptionLoading(false);
         }
@@ -84,6 +100,21 @@ function SubscriptionPage() {
     }
   }, [user, isAuthLoading]);
 
+  // Refresh subscription data (called by child components)
+  const refreshSubscriptionData = async () => {
+    if (user && user.email) {
+      try {
+        const subscriptionInfo = await subscriptionUtils.checkUserSubscriptionWithCancellation(user.email, user.userId);
+        setHasActiveSubscription(subscriptionInfo.hasActiveSubscription);
+        setUserSubscription(subscriptionInfo.subscription);
+        setCancellationInfo(subscriptionInfo.cancellationInfo);
+        setIsInGracePeriod(subscriptionInfo.isInGracePeriod || false);
+      } catch (error) {
+        console.error('Error refreshing subscription:', error);
+      }
+    }
+  };
+
   // Helper function to check if subscription is expired
   const isSubscriptionExpired = (subscription) => {
     if (!subscription || !subscription.endDate) return false;
@@ -92,16 +123,20 @@ function SubscriptionPage() {
     return now > endDate;
   };
 
-  // Helper function to check if user is premium with active subscription
+  // Enhanced helper function to check if user is premium with active subscription
   const isPremiumWithActiveSubscription = () => {
     if (!userSubscription) return false;
     const plan = userSubscription.plan || userSubscription.planName;
-    return plan && plan.toLowerCase() === 'premium' && !isSubscriptionExpired(userSubscription);
+    const isActive = userSubscription.status === 'active' && !isSubscriptionExpired(userSubscription);
+    const isPremium = plan && plan.toLowerCase() === 'premium';
+    
+    // If in grace period, still consider as premium user
+    return isPremium && (isActive || isInGracePeriod);
   };
 
   // Helper function to check if user is free user
   const isFreeUser = () => {
-    if (!userSubscription) return true; // No subscription = free user
+    if (!userSubscription) return true;
     const plan = userSubscription.plan || userSubscription.planName;
     return !plan || plan.toLowerCase() === 'free';
   };
@@ -110,13 +145,13 @@ function SubscriptionPage() {
   const hasExpiredPremium = () => {
     if (!userSubscription) return false;
     const plan = userSubscription.plan || userSubscription.planName;
-    return plan && plan.toLowerCase() === 'premium' && isSubscriptionExpired(userSubscription);
+    return plan && plan.toLowerCase() === 'premium' && isSubscriptionExpired(userSubscription) && !isInGracePeriod;
   };
 
   // Helper function to check if plan should be disabled
   const isPlanDisabled = (planId) => {
-    // If user has active premium subscription, they shouldn't access this page
-    if (isPremiumWithActiveSubscription()) {
+    // If user has active premium subscription (including grace period), they shouldn't access this page
+    if (isPremiumWithActiveSubscription() && !isInGracePeriod) {
       return true;
     }
 
@@ -130,7 +165,7 @@ function SubscriptionPage() {
 
   // Helper function to get plan disabled message
   const getPlanDisabledMessage = (planId) => {
-    if (isPremiumWithActiveSubscription()) {
+    if (isPremiumWithActiveSubscription() && !isInGracePeriod) {
       return "You already have the Premium plan - the best package available!";
     }
 
@@ -142,14 +177,19 @@ function SubscriptionPage() {
   };
 
   const getAvailablePlans = () => {
+    // If user is in grace period, they can renew premium
+    if (isInGracePeriod) {
+      return plans.filter(plan => plan.id !== 1); // Remove free plan, allow premium renewal
+    }
+
     // If user is already on free plan, only show premium plan
     if (isFreeUser() && hasActiveSubscription) {
-      return plans.filter(plan => plan.id !== 1); // Remove free plan
+      return plans.filter(plan => plan.id !== 1);
     }
 
     // For premium users with expired subscription, show only premium plan
     if (hasExpiredPremium()) {
-      return plans.filter(plan => plan.id !== 1); // Remove free plan
+      return plans.filter(plan => plan.id !== 1);
     }
 
     // For new users (non-activated), show all plans
@@ -163,7 +203,8 @@ function SubscriptionPage() {
         ...prev,
         name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : prev.name,
         email: user.email || prev.email,
-        phoneNumber: user.phone || prev.phoneNumber
+        phoneNumber: user.phone || prev.phoneNumber,
+        enableAutoRenew: true // Always keep auto-renew enabled
       }));
     }
   }, [user]);
@@ -172,7 +213,6 @@ function SubscriptionPage() {
     const checkPayHereSDK = () => {
       if (typeof window.payhere === 'undefined') {
         console.warn('PayHere SDK not loaded. Retrying...');
-        // Retry after 2 seconds
         setTimeout(() => {
           if (typeof window.payhere === 'undefined') {
             setError('PayHere payment system failed to load. Please refresh the page.');
@@ -185,7 +225,6 @@ function SubscriptionPage() {
       }
     };
 
-    // Check multiple times to ensure loading
     const timer1 = setTimeout(checkPayHereSDK, 1000);
     const timer2 = setTimeout(checkPayHereSDK, 3000);
 
@@ -209,6 +248,10 @@ function SubscriptionPage() {
   // Handle input changes
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    // Don't allow changing enableAutoRenew for premium plans
+    if (name === 'enableAutoRenew' && formData.selectedPlan === '2') {
+      return; // Keep it always enabled for premium
+    }
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value,
@@ -225,9 +268,13 @@ function SubscriptionPage() {
       return;
     }
 
+    // Always enable auto-renew for premium plans
+    const enableAutoRenew = planId === 2 ? true : false;
+
     setFormData({
       ...formData,
       selectedPlan: planId.toString(),
+      enableAutoRenew: enableAutoRenew,
     });
     setError('');
   };
@@ -236,7 +283,6 @@ function SubscriptionPage() {
     try {
       console.log('Initializing PayHere SDK payment...');
 
-      // Check if PayHere SDK is loaded
       if (typeof window.payhere === 'undefined') {
         throw new Error('PayHere SDK not loaded. Please refresh the page and try again.');
       }
@@ -246,18 +292,15 @@ function SubscriptionPage() {
         hash: paymentData.hash ? paymentData.hash.substring(0, 10) + '...' : 'No hash'
       });
 
-      // Clear any existing handlers
       window.payhere.onCompleted = null;
       window.payhere.onDismissed = null;
       window.payhere.onError = null;
 
-      // Set up PayHere event handlers
       window.payhere.onCompleted = function onCompleted(orderId) {
         console.log("Payment completed successfully. OrderID:", orderId);
         setPaymentStatus('success');
         setIsProcessing(false);
 
-        // Create subscription record with proper error handling
         createSubscriptionRecord({
           userId: user?.userId || null,
           userEmail: formData.email,
@@ -267,7 +310,9 @@ function SubscriptionPage() {
           amount: parseFloat(paymentData.amount),
           currency: paymentData.currency,
           paymentMethod: 'payhere',
-          payhereOrderId: orderId
+          payhereOrderId: orderId,
+          payhereRecurringToken: paymentData.recurring_token || null,
+          enableAutoRenew: true // Always true for premium
         }).then(() => {
           console.log('Subscription record created successfully');
           setTimeout(() => {
@@ -275,7 +320,6 @@ function SubscriptionPage() {
           }, 1500);
         }).catch(error => {
           console.error('Failed to create subscription record:', error);
-          // Still redirect as payment was successful, but show different message
           setTimeout(() => {
             navigate(`/payment-success?plan=premium&orderId=${orderId}&warning=subscription_record_failed`);
           }, 1500);
@@ -296,7 +340,6 @@ function SubscriptionPage() {
         setIsProcessing(false);
       };
 
-      // Start the payment process
       console.log('Starting PayHere SDK payment...');
       window.payhere.startPayment(paymentData);
 
@@ -319,8 +362,9 @@ function SubscriptionPage() {
         },
         body: JSON.stringify({
           ...subscriptionData,
-          // Add PayHere specific fields
-          payhereOrderId: subscriptionData.payhereOrderId
+          payhereOrderId: subscriptionData.payhereOrderId,
+          payhereRecurringToken: subscriptionData.payhereRecurringToken,
+          enableAutoRenew: subscriptionData.enableAutoRenew
         }),
       });
 
@@ -342,7 +386,7 @@ function SubscriptionPage() {
     }
   };
 
-  // Create PayHere payment
+  // Create PayHere payment - Always use recurring for premium plans
   const createPayHerePayment = async () => {
     try {
       setIsProcessing(true);
@@ -351,7 +395,6 @@ function SubscriptionPage() {
 
       console.log('Starting PayHere payment process...');
 
-      // Validation
       const validationErrors = validateForm();
       if (validationErrors.length > 0) {
         throw new Error(validationErrors[0]);
@@ -368,12 +411,12 @@ function SubscriptionPage() {
         throw new Error('Payment amount must be at least LKR 1.00');
       }
 
-      // Prepare payment request
       const paymentRequest = {
         amount: amount,
         currency: 'LKR',
         planId: formData.selectedPlan,
         billingCycle: formData.billingCycle,
+        enableAutoRenew: true, // Always true for premium
         customerData: {
           name: formData.name.trim(),
           email: formData.email.trim().toLowerCase(),
@@ -385,7 +428,10 @@ function SubscriptionPage() {
 
       console.log('Sending payment request to backend...');
 
-      const response = await fetch('http://localhost:5555/create-payhere-payment', {
+      // Always use recurring payment for premium plans
+      const endpoint = 'http://localhost:5555/create-payhere-recurring-payment';
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -411,7 +457,6 @@ function SubscriptionPage() {
       console.log('Payment data received, initializing PayHere SDK...');
       setPaymentStatus('redirecting');
 
-      // Small delay to ensure UI updates
       setTimeout(() => {
         initiatePayHereSDKPayment(responseData.paymentData);
       }, 500);
@@ -485,7 +530,6 @@ function SubscriptionPage() {
       if (result.success) {
         setPaymentStatus('success');
 
-        // Create free subscription record
         try {
           await createSubscriptionRecord({
             userId: user?.userId || null,
@@ -495,7 +539,8 @@ function SubscriptionPage() {
             billingCycle: formData.billingCycle,
             amount: 0,
             currency: 'LKR',
-            paymentMethod: 'free'
+            paymentMethod: 'free',
+            enableAutoRenew: false
           });
         } catch (error) {
           console.error('Failed to create subscription record:', error);
@@ -524,7 +569,6 @@ function SubscriptionPage() {
 
     console.log('Form submission started');
 
-    // Validate form
     const validationErrors = validateForm();
     if (validationErrors.length > 0) {
       setError(validationErrors[0]);
@@ -537,12 +581,11 @@ function SubscriptionPage() {
       return;
     }
 
-    // Handle free plan
     if (selectedPlan.id === 1) {
       console.log('Processing free subscription');
       await createFreeSubscription();
     } else {
-      console.log('Processing PayHere payment with SDK method');
+      console.log('Processing PayHere payment with auto-renewal');
       await createPayHerePayment();
     }
   };
@@ -576,10 +619,10 @@ function SubscriptionPage() {
         </div>
       </div>
     );
-  }
+  };
 
-  // Redirect premium users with active subscription back to profile
-  if (isPremiumWithActiveSubscription()) {
+  // Enhanced redirect logic for premium users
+  if (isPremiumWithActiveSubscription() && !isInGracePeriod) {
     return (
       <div style={{
         display: 'flex',
@@ -602,7 +645,7 @@ function SubscriptionPage() {
           maxWidth: '500px'
         }}>
           <h2>You Already Have Premium!</h2>
-          <p>You currently have an active Premium subscription - the best package available!</p>
+          <p>You currently have an active Premium subscription with auto-renewal enabled!</p>
           <p>You cannot make changes to your subscription at this time.</p>
           <button
             onClick={() => navigate('/profile')}
@@ -643,10 +686,14 @@ function SubscriptionPage() {
     }
 
     if (hasExpiredPremium()) {
-      return 'Renew Premium Plan';
+      return 'Renew Premium (Auto-Renewal)';
     }
 
-    return 'Upgrade to Premium';
+    if (isInGracePeriod) {
+      return 'Reactivate Premium (Auto-Renewal)';
+    }
+
+    return 'Upgrade to Premium (Auto-Renewal)';
   };
 
   // Get status alert
@@ -759,9 +806,29 @@ function SubscriptionPage() {
     return null;
   };
 
-  // Show subscription status if user has one
+  // Enhanced subscription status banner
   const getSubscriptionStatusBanner = () => {
     if (!userSubscription) return null;
+
+    // Grace period banner (highest priority)
+    if (isInGracePeriod && cancellationInfo) {
+      const daysRemaining = cancellationInfo.daysRemaining || 0;
+      return (
+        <div style={{
+          backgroundColor: '#fff3cd',
+          border: '1px solid #ffeaa7',
+          color: '#856404',
+          padding: '15px',
+          borderRadius: '8px',
+          margin: '20px',
+          textAlign: 'center'
+        }}>
+          <strong>⏰ Subscription Ending Soon:</strong> Your premium features will end in {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} 
+          ({new Date(cancellationInfo.effectiveDate).toLocaleDateString()}). 
+          You can reactivate your subscription below with auto-renewal to continue enjoying premium features!
+        </div>
+      );
+    }
 
     if (isFreeUser()) {
       return (
@@ -774,7 +841,7 @@ function SubscriptionPage() {
           margin: '20px',
           textAlign: 'center'
         }}>
-          <strong>Current Status:</strong> You have a Free plan. Upgrade to Premium to unlock more features!
+          <strong>Current Status:</strong> You have a Free plan. Upgrade to Premium with auto-renewal to unlock more features!
         </div>
       );
     }
@@ -790,7 +857,7 @@ function SubscriptionPage() {
           margin: '20px',
           textAlign: 'center'
         }}>
-          <strong>Subscription Expired:</strong> Your Premium subscription has expired. Renew now to continue enjoying premium features!
+          <strong>Subscription Expired:</strong> Your Premium subscription has expired. Renew now with auto-renewal to continue enjoying premium features!
         </div>
       );
     }
@@ -808,7 +875,6 @@ function SubscriptionPage() {
       minHeight: '100vh',
     },
     header: {
-      //background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       color: 'white',
       padding: '20px',
       position: 'relative',
@@ -829,7 +895,6 @@ function SubscriptionPage() {
       margin: 0,
       fontSize: '2.5em',
       fontWeight: 'bold',
-
     },
     subtitle: {
       margin: '10px 0 0 0',
@@ -955,6 +1020,14 @@ function SubscriptionPage() {
       transition: 'border-color 0.3s ease',
       boxSizing: 'border-box',
     },
+    autoRenewNotice: {
+      marginBottom: '20px',
+      padding: '15px',
+      backgroundColor: '#e8f5e8',
+      borderRadius: '8px',
+      border: '1px solid #c3e6cb',
+      color: '#155724',
+    },
     termsContainer: {
       marginBottom: '20px',
       textAlign: 'left',
@@ -1009,11 +1082,6 @@ function SubscriptionPage() {
 
   return (
     <div style={styles.app}>
-      {/* Display logged in user info */}
-      {/* <div style={{ position: 'absolute', top: '10px', right: '20px', color: 'white', fontSize: '14px', zIndex: 10 }}>
-        Welcome, {user?.firstName || user?.email}
-      </div> */}
-
       <header style={styles.header}>
         <button
           type="button"
@@ -1022,22 +1090,21 @@ function SubscriptionPage() {
         >
           ← Back to Profile
         </button>
-        {/* <div>
-          <h1 style={styles.h1}>
-            {hasExpiredPremium() ? 'Renew Your Plan' : 'Choose Your Plan'}
-          </h1>
-          <p style={styles.subtitle}>
-            {hasExpiredPremium()
-              ? 'Renew your Premium subscription to continue enjoying premium features'
-              : 'Select the perfect subscription for your needs'
-            }
-          </p>
-        </div> */}
       </header>
 
       {/* Status alerts */}
       {getStatusAlert()}
       {getSubscriptionStatusBanner()}
+
+      {/* Grace Period Management */}
+      {userSubscription && userSubscription.planId === '2' && (
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 20px' }}>
+          <SubscriptionCancellationManager 
+            subscription={userSubscription}
+            onUpdate={refreshSubscriptionData}
+          />
+        </div>
+      )}
 
       {/* Plans Selection */}
       <div style={styles.plansContainer}>
@@ -1064,10 +1131,10 @@ function SubscriptionPage() {
                 <div style={styles.disabledBadge}>Already Activated</div>
               )}
 
-              {/* Show popular badge for premium plan */}
+              {/* Show popular/renewal badge for premium plan */}
               {plan.popular && !isDisabled && (
                 <div style={styles.popularBadge}>
-                  {hasExpiredPremium() ? 'Renew Now' : 'Most Popular'}
+                  {hasExpiredPremium() ? 'Renew Now' : isInGracePeriod ? 'Reactivate' : 'Most Popular'}
                 </div>
               )}
 
@@ -1075,6 +1142,8 @@ function SubscriptionPage() {
               <div style={styles.planDescription}>
                 {isDisabled && plan.id === 1
                   ? "You already have this plan activated"
+                  : isInGracePeriod && plan.id === 2
+                  ? "Reactivate your premium subscription with auto-renewal"
                   : plan.description
                 }
               </div>
@@ -1099,11 +1168,12 @@ function SubscriptionPage() {
         })}
       </div>
 
-
       <div style={styles.mainContent}>
         <div style={styles.formContainer}>
           <h2><b>
-            {hasExpiredPremium() ? 'Renew Your Subscription' : 'Complete Your Subscription'}
+            {hasExpiredPremium() ? 'Renew Your Subscription' : 
+             isInGracePeriod ? 'Reactivate Your Subscription' :
+             'Complete Your Subscription'}
           </b></h2>
 
           <form onSubmit={handleSubmit}>
@@ -1135,6 +1205,20 @@ function SubscriptionPage() {
               required
             />
 
+            {/* Auto-Renewal Notice for Premium Plan */}
+            {formData.selectedPlan === '2' && (
+              <div style={styles.autoRenewNotice}>
+                <strong>🔄 Auto-Renewal Included</strong>
+                <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+                  Your Premium subscription includes automatic monthly renewal for uninterrupted service. 
+                  You can manage or cancel your subscription anytime through your account settings.
+                  {isInGracePeriod && (
+                    <><br /><strong>Note:</strong> This will reactivate your subscription immediately.</>
+                  )}
+                </p>
+              </div>
+            )}
+
             {/* Payment security notice for paid plans */}
             {formData.selectedPlan === '2' && (
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '20px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
@@ -1142,6 +1226,7 @@ function SubscriptionPage() {
                   <strong>🔒 Secure Payment:</strong>
                   We use PayHere's secure payment gateway with bank-level encryption.
                   PayHere is the most trusted payment solution in Sri Lanka.
+                  <br /><br /><strong>Auto-Renewal:</strong> Convenient monthly billing with full control. Manage or cancel anytime through your account.
                 </p>
               </div>
             )}
@@ -1197,10 +1282,14 @@ function SubscriptionPage() {
             {userSubscription && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span>Current Plan:</span>
-                <span style={{ fontWeight: 'bold', color: hasExpiredPremium() ? '#dc3545' : '#28a745' }}>
+                <span style={{ 
+                  fontWeight: 'bold', 
+                  color: hasExpiredPremium() ? '#dc3545' : isInGracePeriod ? '#ffa500' : '#28a745' 
+                }}>
                   {(userSubscription.plan || userSubscription.planName || 'Free').charAt(0).toUpperCase() +
                     (userSubscription.plan || userSubscription.planName || 'Free').slice(1)}
                   {hasExpiredPremium() && ' (Expired)'}
+                  {isInGracePeriod && ' (Ending Soon)'}
                 </span>
               </div>
             )}
@@ -1209,6 +1298,17 @@ function SubscriptionPage() {
               <span>Billing Cycle:</span>
               <span style={{ fontWeight: 'bold' }}>Monthly</span>
             </div>
+            
+            {/* Show auto-renewal status */}
+            {formData.selectedPlan === '2' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span>Auto-Renewal:</span>
+                <span style={{ fontWeight: 'bold', color: '#28a745' }}>
+                  Included
+                </span>
+              </div>
+            )}
+            
             {formData.selectedPlan === '2' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span>Payment Method:</span>
@@ -1224,7 +1324,12 @@ function SubscriptionPage() {
               </span>
             </div>
             <div style={{ fontSize: '14px', color: '#64748b', textAlign: 'center', marginTop: '5px' }}>
-              {formData.selectedPlan === '1' ? 'No payment required' : 'Billed monthly'}
+              {formData.selectedPlan === '1' 
+                ? 'No payment required' 
+                : isInGracePeriod
+                ? 'Reactivates immediately'
+                : 'Auto-renews monthly'
+              }
             </div>
           </div>
         </div>
@@ -1258,23 +1363,26 @@ function SubscriptionPage() {
               <h4>1. Subscription Terms</h4>
               <p>By subscribing to our service, you agree to pay the selected subscription fee in Sri Lankan Rupees (LKR) according to your chosen billing cycle (monthly).</p>
 
-              <h4>2. Payment</h4>
-              <p>Payments are processed securely through PayHere. Your subscription will automatically renew unless cancelled.</p>
+              <h4>2. Payment & Auto-Renewal</h4>
+              <p>Payments are processed securely through PayHere. Premium subscriptions automatically include auto-renewal for uninterrupted service. Your subscription will automatically renew monthly using your saved payment method unless cancelled.</p>
 
-              <h4>3. Billing Cycles</h4>
-              <p>Monthly subscriptions renew every 30 days.</p>
+              <h4>3. Auto-Renewal & Grace Period</h4>
+              <p>Premium subscriptions include automatic monthly renewal. If you schedule a cancellation, you'll continue to enjoy premium features until your next billing date, after which your account will automatically switch to the Free plan.</p>
 
-              <h4>4. Currency</h4>
+              <h4>4. Billing Cycles</h4>
+              <p>Monthly subscriptions renew every 30 days with auto-renewal enabled by default for Premium plans.</p>
+
+              <h4>5. Currency</h4>
               <p>All prices are listed in Sri Lankan Rupees (LKR) and processed through PayHere's secure gateway.</p>
 
-              <h4>5. Cancellation</h4>
-              <p>You may cancel your subscription at any time through your account settings. Cancellation will take effect at the end of the current billing period.</p>
+              <h4>6. Cancellation & Grace Period</h4>
+              <p>You may cancel your auto-renewal subscription at any time through your account settings. When you schedule a cancellation, you'll continue to enjoy all premium features until your next billing date. After that, your account will automatically switch to the Free plan. You can reactivate your premium subscription anytime before the cancellation takes effect.</p>
 
-              <h4>6. Refunds</h4>
+              <h4>7. Refunds</h4>
               <p>Refunds are available within 7 days of purchase for monthly plans, subject to our refund policy.</p>
 
-              <h4>7. Plan Changes</h4>
-              <p>Free users can upgrade to Premium at any time. Premium users cannot downgrade during their active subscription period.</p>
+              <h4>8. Plan Changes</h4>
+              <p>Free users can upgrade to Premium at any time with auto-renewal included. Premium users can manage their auto-renewal settings and schedule cancellations through their account.</p>
             </div>
             <button
               onClick={() => setShowTerms(false)}

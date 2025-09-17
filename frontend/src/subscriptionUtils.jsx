@@ -1,12 +1,312 @@
+// Enhanced subscriptionUtils with plan limit enforcement and fixed downgrade functions
 import axios from 'axios';
 
 export const subscriptionUtils = {
-  // UPDATED: Check if a user has an active subscription - handles three user types
+  // ==================== NEW PLAN LIMIT ENFORCEMENT FUNCTIONS ====================
+
+  // Check plan limits on sign in
+  checkPlanLimitsOnSignIn: async (userId) => {
+    try {
+      console.log('Checking plan limits for userId:', userId);
+      
+      const response = await axios.get(`http://localhost:5555/api/user/${userId}/plan-limits`);
+      
+      if (response.data.success) {
+        return response.data.planLimits;
+      }
+      
+      return { exceedsLimits: false };
+    } catch (error) {
+      console.error('Error checking plan limits:', error);
+      return { exceedsLimits: false };
+    }
+  },
+
+  // Enforce plan limits by deleting selected items
+  enforcePlanLimits: async (userId, selectedBusinesses = [], selectedOffers = []) => {
+    try {
+      console.log('Enforcing plan limits for userId:', userId);
+      
+      const response = await axios.post(`http://localhost:5555/api/user/${userId}/enforce-plan-limits`, {
+        selectedBusinesses,
+        selectedOffers
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error enforcing plan limits:', error);
+      throw new Error(error.response?.data?.message || 'Failed to enforce plan limits');
+    }
+  },
+
+  // Reactivate suspended items when user upgrades
+  reactivateSuspendedItems: async (userId) => {
+    try {
+      console.log('Reactivating suspended items for userId:', userId);
+      
+      const response = await axios.post(`http://localhost:5555/api/user/${userId}/reactivate-suspended-items`);
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error reactivating suspended items:', error);
+      throw new Error(error.response?.data?.message || 'Failed to reactivate suspended items');
+    }
+  },
+
+  // Get plan enforcement message
+  getPlanEnforcementMessage: (planLimitData) => {
+    if (!planLimitData || !planLimitData.exceedsLimits) {
+      return null;
+    }
+
+    const messages = [];
+    
+    if (planLimitData.exceedsBusinesses) {
+      const excess = planLimitData.currentBusinesses - planLimitData.maxBusinesses;
+      messages.push(`${excess} business${excess > 1 ? 'es' : ''} exceed${excess === 1 ? 's' : ''} your Free plan limit`);
+    }
+    
+    if (planLimitData.exceedsOffers) {
+      const excess = planLimitData.currentOffers - planLimitData.maxOffers;
+      messages.push(`${excess} offer${excess > 1 ? 's' : ''} exceed${excess === 1 ? 's' : ''} your Free plan limit`);
+    }
+
+    return {
+      title: 'Plan Limit Exceeded',
+      message: messages.join(' and '),
+      actionRequired: true,
+      canUpgrade: true,
+      canDelete: true
+    };
+  },
+
+  // Check if downgrade will cause plan limit issues
+  checkDowngradeImpact: async (userId) => {
+    try {
+      const response = await axios.get(`http://localhost:5555/api/subscription/downgrade-impact/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error checking downgrade impact:', error);
+      throw error;
+    }
+  },
+
+  // Check user subscription with plan limit warnings
+  checkUserSubscriptionWithLimits: async (userEmail, userId) => {
+    try {
+      console.log('Checking subscription with limits for:', userEmail, 'userId:', userId);
+
+      const response = await axios.post('http://localhost:5555/api/user/check-subscription-with-renewal', {
+        email: userEmail,
+        userId: userId
+      });
+
+      console.log('Subscription check response:', response.data);
+
+      const baseResult = {
+        hasSubscription: response.data.hasSubscription || false,
+        hasActiveSubscription: response.data.hasActiveSubscription || false,
+        isPremiumUser: response.data.isPremiumUser || false,
+        isFreeUser: response.data.isFreeUser || false,
+        isNonActivated: response.data.isNonActivated || false,
+        userExists: response.data.userExists || true,
+        subscription: response.data.subscription || null,
+        autoRenewal: response.data.autoRenewal || null,
+        renewalWarning: response.data.renewalWarning || false,
+        paymentFailure: response.data.paymentFailure || false
+      };
+
+      // Include plan limit warning if present
+      if (response.data.planLimitWarning) {
+        baseResult.planLimitWarning = response.data.planLimitWarning;
+        baseResult.requiresPlanEnforcement = response.data.planLimitWarning.exceedsLimits;
+      }
+
+      return baseResult;
+
+    } catch (error) {
+      console.error('Error checking subscription with limits:', error);
+      return {
+        hasSubscription: false,
+        hasActiveSubscription: false,
+        isPremiumUser: false,
+        isFreeUser: false,
+        isNonActivated: true,
+        userExists: true,
+        subscription: null,
+        paymentFailure: false,
+        requiresPlanEnforcement: false
+      };
+    }
+  },
+
+  // Handle plan limit modal actions
+  handlePlanLimitActions: {
+    // Option 1: Upgrade to Premium
+    upgradeFromLimitModal: (navigate) => {
+      navigate('/SubscriptionPage?reason=plan_limit_exceeded');
+    },
+
+    // Option 2: Delete selected items
+    deleteSelectedItems: async (userId, selectedBusinesses, selectedOffers) => {
+      try {
+        const result = await subscriptionUtils.enforcePlanLimits(
+          userId, 
+          selectedBusinesses, 
+          selectedOffers
+        );
+        return result;
+      } catch (error) {
+        throw new Error(error.message || 'Failed to delete selected items');
+      }
+    },
+
+    // Option 3: Suspend items (alternative to deletion)
+    suspendSelectedItems: async (userId, selectedBusinesses, selectedOffers) => {
+      try {
+        const response = await axios.post(`http://localhost:5555/api/user/${userId}/suspend-items`, {
+          selectedBusinesses,
+          selectedOffers,
+          reason: 'User-initiated suspension due to plan limits'
+        });
+        return response.data;
+      } catch (error) {
+        throw new Error(error.response?.data?.message || 'Failed to suspend selected items');
+      }
+    }
+  },
+
+  // Validate plan limit selections
+  validatePlanLimitSelections: (planLimitData, selectedBusinesses, selectedOffers) => {
+    const validation = {
+      isValid: true,
+      errors: [],
+      warnings: []
+    };
+
+    if (!planLimitData || !planLimitData.exceedsLimits) {
+      validation.errors.push('No plan limit enforcement required');
+      validation.isValid = false;
+      return validation;
+    }
+
+    const businessesToDelete = planLimitData.exceedsBusinesses ? 
+      planLimitData.currentBusinesses - planLimitData.maxBusinesses : 0;
+    const offersToDelete = planLimitData.exceedsOffers ? 
+      planLimitData.currentOffers - planLimitData.maxOffers : 0;
+
+    // Validate business selections
+    if (businessesToDelete > 0) {
+      if (selectedBusinesses.length !== businessesToDelete) {
+        validation.errors.push(
+          `You must select exactly ${businessesToDelete} business${businessesToDelete > 1 ? 'es' : ''} to delete`
+        );
+        validation.isValid = false;
+      }
+    }
+
+    // Validate offer selections
+    if (offersToDelete > 0) {
+      if (selectedOffers.length !== offersToDelete) {
+        validation.errors.push(
+          `You must select exactly ${offersToDelete} offer${offersToDelete > 1 ? 's' : ''} to delete`
+        );
+        validation.isValid = false;
+      }
+    }
+
+    // Add warnings about data loss
+    if (selectedBusinesses.length > 0) {
+      validation.warnings.push('Deleting businesses will also delete all their associated offers');
+    }
+
+    if (selectedOffers.length > 0) {
+      validation.warnings.push('Deleted offers cannot be recovered');
+    }
+
+    return validation;
+  },
+
+  // Get plan enforcement options
+  getPlanEnforcementOptions: (planLimitData) => {
+    if (!planLimitData || !planLimitData.exceedsLimits) {
+      return [];
+    }
+
+    return [
+      {
+        id: 'upgrade',
+        title: 'Upgrade to Premium',
+        description: 'Get unlimited businesses and offers with Premium plan',
+        recommended: true,
+        action: 'upgrade',
+        buttonText: 'Upgrade Now',
+        buttonStyle: 'success'
+      },
+      {
+        id: 'delete',
+        title: 'Delete Excess Items',
+        description: 'Permanently delete businesses and offers to fit Free plan limits',
+        recommended: false,
+        action: 'delete',
+        buttonText: 'Delete Items',
+        buttonStyle: 'danger',
+        requiresSelection: true
+      },
+      {
+        id: 'suspend',
+        title: 'Temporarily Suspend Items',
+        description: 'Suspend excess items (can be reactivated with Premium)',
+        recommended: false,
+        action: 'suspend',
+        buttonText: 'Suspend Items',
+        buttonStyle: 'warning',
+        requiresSelection: true,
+        note: 'Suspended items can be reactivated when you upgrade to Premium'
+      }
+    ];
+  },
+
+  // Format plan limit summary for UI
+  formatPlanLimitSummary: (planLimitData) => {
+    if (!planLimitData) {
+      return { message: 'Plan limits check unavailable', severity: 'info' };
+    }
+
+    if (!planLimitData.exceedsLimits) {
+      return { 
+        message: 'Within plan limits', 
+        severity: 'success',
+        details: `${planLimitData.currentBusinesses}/${planLimitData.maxBusinesses} businesses, ${planLimitData.currentOffers}/${planLimitData.maxOffers} offers`
+      };
+    }
+
+    const issues = [];
+    if (planLimitData.exceedsBusinesses) {
+      const excess = planLimitData.currentBusinesses - planLimitData.maxBusinesses;
+      issues.push(`${excess} business${excess > 1 ? 'es' : ''}`);
+    }
+    if (planLimitData.exceedsOffers) {
+      const excess = planLimitData.currentOffers - planLimitData.maxOffers;
+      issues.push(`${excess} offer${excess > 1 ? 's' : ''}`);
+    }
+
+    return {
+      message: `Exceeds Free plan limits: ${issues.join(' and ')}`,
+      severity: 'error',
+      details: `Current: ${planLimitData.currentBusinesses} businesses, ${planLimitData.currentOffers} offers. Free plan allows: ${planLimitData.maxBusinesses} business, ${planLimitData.maxOffers} offers`,
+      actionRequired: true
+    };
+  },
+
+  // ==================== ENHANCED EXISTING FUNCTIONS ====================
+
+  // Check if a user has an active subscription
   checkUserSubscription: async (userEmail, userId) => {
     try {
       console.log('Checking subscription for:', userEmail, 'userId:', userId);
 
-      const response = await axios.post('http://localhost:5555/api/user/check-subscription', {
+      const response = await axios.post('http://localhost:5555/api/user/check-subscription-with-renewal', {
         email: userEmail,
         userId: userId
       });
@@ -19,9 +319,12 @@ export const subscriptionUtils = {
           hasActiveSubscription: response.data.hasActiveSubscription || false,
           isPremiumUser: response.data.isPremiumUser || false,
           isFreeUser: response.data.isFreeUser || false,
-          isNonActivated: response.data.isNonActivated || false, // NEW
+          isNonActivated: response.data.isNonActivated || false,
           userExists: response.data.userExists || true,
-          subscription: response.data.subscription || null
+          subscription: response.data.subscription || null,
+          autoRenewal: response.data.autoRenewal || null,
+          renewalWarning: response.data.renewalWarning || false,
+          paymentFailure: response.data.paymentFailure || false
         };
       }
 
@@ -30,9 +333,10 @@ export const subscriptionUtils = {
         hasActiveSubscription: false,
         isPremiumUser: false,
         isFreeUser: false,
-        isNonActivated: true, // Default to non-activated
+        isNonActivated: true,
         userExists: true,
-        subscription: null
+        subscription: null,
+        paymentFailure: false
       };
 
     } catch (error) {
@@ -44,48 +348,51 @@ export const subscriptionUtils = {
         isFreeUser: false,
         isNonActivated: true,
         userExists: true,
-        subscription: null
+        subscription: null,
+        paymentFailure: false
       };
     }
   },
 
-  // UPDATED: Get subscription limits based on plan - handles three types
+  // Get subscription limits based on plan
   getSubscriptionLimits: (subscription) => {
     if (!subscription) {
-      return { maxBusinesses: 0, maxOffers: 0 }; // Non-activated users can't create anything
+      return { maxBusinesses: 0, maxOffers: 0 };
     }
 
-    // Premium plan limits - FIXED: 3 businesses, 9 offers
+    // Premium plan limits
     if (subscription.planId === '2' && 
         subscription.status === 'active' &&
         (!subscription.endDate || new Date(subscription.endDate) > new Date())) {
-      return { maxBusinesses: 3, maxOffers: 9 }; // PREMIUM: 3 businesses, 9 offers
+      return { maxBusinesses: 3, maxOffers: 9 };
     }
 
-    // Free plan limits - FIXED: 1 business, 3 offers
+    // Free plan limits
     if (subscription.planId === '1' && subscription.status === 'active') {
-      return { maxBusinesses: 1, maxOffers: 3 }; // FREE: 1 business, 3 offers
+      return { maxBusinesses: 1, maxOffers: 3 };
     }
 
     // Default to no access for expired/inactive subscriptions
     return { maxBusinesses: 0, maxOffers: 0 };
   },
 
-  // UPDATED: Check if user can add more businesses
-  canAddBusiness: (currentCount, subscription) => {
+  // ENHANCED: Check if user can add business (with suspended items consideration)
+  canAddBusiness: (currentCount, subscription, suspendedCount = 0) => {
     const limits = subscriptionUtils.getSubscriptionLimits(subscription);
-    console.log(`Business limit check: ${currentCount}/${limits.maxBusinesses} (can add: ${currentCount < limits.maxBusinesses})`);
-    return currentCount < limits.maxBusinesses;
+    const totalCount = currentCount + suspendedCount;
+    console.log(`Business limit check: ${currentCount} active + ${suspendedCount} suspended = ${totalCount}/${limits.maxBusinesses} (can add: ${totalCount < limits.maxBusinesses})`);
+    return totalCount < limits.maxBusinesses;
   },
 
-  // UPDATED: Check if user can add more offers
-  canAddOffer: (currentCount, subscription) => {
+  // ENHANCED: Check if user can add offer (with suspended items consideration)
+  canAddOffer: (currentCount, subscription, suspendedCount = 0) => {
     const limits = subscriptionUtils.getSubscriptionLimits(subscription);
-    console.log(`Offer limit check: ${currentCount}/${limits.maxOffers} (can add: ${currentCount < limits.maxOffers})`);
-    return currentCount < limits.maxOffers;
+    const totalCount = currentCount + suspendedCount;
+    console.log(`Offer limit check: ${currentCount} active + ${suspendedCount} suspended = ${totalCount}/${limits.maxOffers} (can add: ${totalCount < limits.maxOffers})`);
+    return totalCount < limits.maxOffers;
   },
 
-  // UPDATED: Get limit message for display
+  // Get limit message for display
   getLimitMessage: (type, currentCount, subscription) => {
     const limits = subscriptionUtils.getSubscriptionLimits(subscription);
     
@@ -102,7 +409,7 @@ export const subscriptionUtils = {
     }
   },
 
-  // UPDATED: Check if user is premium
+  // Check if user is premium
   isPremiumUser: (subscription) => {
     return subscription &&
            subscription.planId === '2' &&
@@ -110,28 +417,189 @@ export const subscriptionUtils = {
            (!subscription.endDate || new Date(subscription.endDate) > new Date());
   },
 
-  // UPDATED: Check if user is free user
+  // Check if user is free user
   isFreeUser: (subscription) => {
     return subscription &&
            subscription.planId === '1' &&
            subscription.status === 'active';
   },
 
-  // NEW: Check if user is non-activated
+  // Check if user is non-activated
   isNonActivated: (subscription) => {
     return !subscription || subscription === null;
   },
 
-  // UPDATED: Check if user should see subscription page
-  shouldShowSubscriptionPage: (subscriptionResult) => {
-    // Only non-activated users should see subscription page
-    return subscriptionResult.isNonActivated;
+  // Get downgrade impact for premium users
+  getDowngradeImpact: async (userId) => {
+    try {
+      const response = await axios.get(`http://localhost:5555/api/subscription/downgrade-impact/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting downgrade impact:', error);
+      throw error;
+    }
   },
 
-  // UPDATED: Check if user can access business features  
-  canAccessBusinessFeatures: (subscriptionResult) => {
-    // Both premium and free users can access business features
-    return subscriptionResult.isPremiumUser || subscriptionResult.isFreeUser;
+  // Get downgrade details
+  getDowngradeDetails: async (userId) => {
+    try {
+      const response = await axios.get(`http://localhost:5555/api/subscription/downgrade-details/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting downgrade details:', error);
+      throw error;
+    }
+  },
+
+  // FIXED: Enhanced schedule downgrade function
+  scheduleDowngradeToFree: async (userId, userEmail, reason, selections = null) => {
+    try {
+      console.log('Scheduling downgrade for userId:', userId);
+      
+      const response = await axios.post('http://localhost:5555/api/subscription/schedule-downgrade', {
+        userId,
+        userEmail,
+        reason,
+        selections,
+        handlePlanLimits: true,
+        disableAutoRenewal: true // Explicitly flag to disable auto-renewal
+      });
+      
+      console.log('Downgrade scheduling response:', response.data);
+      
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          message: response.data.message,
+          effectiveDate: response.data.effectiveDate,
+          daysRemaining: response.data.daysRemaining,
+          autoRenewalDisabled: true
+        };
+      } else {
+        return {
+          success: false,
+          message: response.data?.message || 'Failed to schedule downgrade',
+          alreadyScheduled: response.data?.alreadyScheduled || false
+        };
+      }
+      
+    } catch (error) {
+      console.error('Error scheduling downgrade:', error);
+      
+      if (error.response) {
+        return {
+          success: false,
+          message: error.response.data?.message || `Server error: ${error.response.status}`
+        };
+      }
+      
+      throw new Error(error.message || 'Failed to schedule downgrade');
+    }
+  },
+
+  // FIXED: Enhanced cancel scheduled downgrade function
+  cancelScheduledDowngrade: async (userId) => {
+    try {
+      console.log('Cancelling scheduled downgrade for userId:', userId);
+      
+      const response = await axios.post('http://localhost:5555/api/subscription/cancel-scheduled-downgrade', {
+        userId: parseInt(userId)
+      });
+      
+      console.log('Cancel downgrade response:', response.data);
+      
+      return {
+        success: response.data?.success || false,
+        message: response.data?.message || 'Operation completed'
+      };
+      
+    } catch (error) {
+      console.error('Error cancelling scheduled downgrade:', error);
+      
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Failed to cancel downgrade'
+      };
+    }
+  },
+
+  // NEW: Cancel auto-renewal without scheduling downgrade
+  cancelAutoRenewal: async (userId, userEmail, reason = null) => {
+    try {
+      console.log('Cancelling auto-renewal for userId:', userId);
+      
+      const response = await axios.post('http://localhost:5555/api/subscription/cancel-auto-renewal', {
+        userId,
+        userEmail,
+        reason: reason || 'User requested auto-renewal cancellation'
+      });
+      
+      console.log('Auto-renewal cancellation response:', response.data);
+      
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          message: response.data.message,
+          autoRenewalDisabled: true
+        };
+      } else {
+        return {
+          success: false,
+          message: response.data?.message || 'Failed to cancel auto-renewal'
+        };
+      }
+      
+    } catch (error) {
+      console.error('Error cancelling auto-renewal:', error);
+      
+      if (error.response) {
+        return {
+          success: false,
+          message: error.response.data?.message || `Server error: ${error.response.status}`
+        };
+      }
+      
+      throw new Error(error.message || 'Failed to cancel auto-renewal');
+    }
+  },
+
+  // NEW: Reactivate auto-renewal
+  reactivateAutoRenewal: async (userId, userEmail) => {
+    try {
+      console.log('Reactivating auto-renewal for userId:', userId);
+      
+      const response = await axios.post('http://localhost:5555/api/subscription/reactivate-auto-renewal', {
+        userId,
+        userEmail
+      });
+      
+      console.log('Auto-renewal reactivation response:', response.data);
+      
+      if (response.data && response.data.success) {
+        return {
+          success: true,
+          message: response.data.message,
+          autoRenewalEnabled: true
+        };
+      } else {
+        return {
+          success: false,
+          message: response.data?.message || 'Failed to reactivate auto-renewal'
+        };
+      }
+      
+    } catch (error) {
+      console.error('Error reactivating auto-renewal:', error);
+      
+      if (error.response) {
+        return {
+          success: false,
+          message: error.response.data?.message || `Server error: ${error.response.status}`
+        };
+      }
+      
+      throw new Error(error.message || 'Failed to reactivate auto-renewal');
+    }
   },
 
   // Create subscription record after successful payment
@@ -158,46 +626,55 @@ export const subscriptionUtils = {
     }
   },
 
-  // Enhanced PayHere payment creation with better error handling
+  // Enhanced PayHere payment creation (auto-renewal enabled by default)
   createPayHerePayment: async (paymentData) => {
     try {
-      console.log('Creating PayHere payment...');
+      console.log('Creating PayHere payment with auto-renewal...');
+      
+      // Add auto-renewal flag to payment data
+      const enhancedPaymentData = {
+        ...paymentData,
+        autoRenewal: true,
+        recurringPayment: true
+      };
+
       console.log('Payment data being sent:', {
-        amount: paymentData.amount,
-        currency: paymentData.currency,
-        planId: paymentData.planId,
-        billingCycle: paymentData.billingCycle,
-        customerName: paymentData.customerData?.name,
-        customerEmail: paymentData.customerData?.email,
-        customerPhone: paymentData.customerData?.phoneNumber
+        amount: enhancedPaymentData.amount,
+        currency: enhancedPaymentData.currency,
+        planId: enhancedPaymentData.planId,
+        billingCycle: enhancedPaymentData.billingCycle,
+        autoRenewal: enhancedPaymentData.autoRenewal,
+        customerName: enhancedPaymentData.customerData?.name,
+        customerEmail: enhancedPaymentData.customerData?.email,
+        customerPhone: enhancedPaymentData.customerData?.phoneNumber
       });
 
       // Validate required fields before sending
-      if (!paymentData.amount || paymentData.amount < 10) {
+      if (!enhancedPaymentData.amount || enhancedPaymentData.amount < 10) {
         throw new Error('Amount must be at least LKR 10.00');
       }
 
-      if (!paymentData.customerData?.name?.trim()) {
+      if (!enhancedPaymentData.customerData?.name?.trim()) {
         throw new Error('Customer name is required');
       }
 
-      if (!paymentData.customerData?.email?.trim()) {
+      if (!enhancedPaymentData.customerData?.email?.trim()) {
         throw new Error('Customer email is required');
       }
 
-      if (!paymentData.customerData?.phoneNumber?.trim()) {
+      if (!enhancedPaymentData.customerData?.phoneNumber?.trim()) {
         throw new Error('Customer phone number is required');
       }
 
       // Email format validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(paymentData.customerData.email.trim())) {
+      if (!emailRegex.test(enhancedPaymentData.customerData.email.trim())) {
         throw new Error('Invalid email format');
       }
 
       // Make API call with timeout
-      const response = await axios.post('http://localhost:5555/create-payhere-payment', paymentData, {
-        timeout: 30000, // 30 second timeout
+      const response = await axios.post('http://localhost:5555/create-payhere-payment', enhancedPaymentData, {
+        timeout: 30000,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
@@ -234,7 +711,6 @@ export const subscriptionUtils = {
       console.error('PayHere payment creation failed:');
 
       if (error.response) {
-        // Server responded with error
         console.error('Server Error Response:', {
           status: error.response.status,
           data: error.response.data
@@ -245,18 +721,56 @@ export const subscriptionUtils = {
           `Server error: ${error.response.status}`;
         throw new Error(errorMessage);
       } else if (error.request) {
-        // Network error
         console.error('Network Error:', error.request);
         throw new Error('Network error: Unable to reach payment server');
       } else {
-        // Other error
         console.error('Error:', error.message);
         throw error;
       }
     }
   },
 
-  // UPDATED: Format subscription status for display - handles three types
+  // Process automatic renewal payment
+  processAutomaticRenewal: async (subscriptionId, userId) => {
+    try {
+      const response = await axios.post('http://localhost:5555/api/subscription/process-renewal', {
+        subscriptionId,
+        userId
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error processing automatic renewal:', error);
+      throw error;
+    }
+  },
+
+  // Handle payment failure
+  handlePaymentFailure: async (userId, subscriptionId, failureReason) => {
+    try {
+      const response = await axios.post('http://localhost:5555/api/subscription/payment-failure', {
+        userId,
+        subscriptionId,
+        failureReason
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error handling payment failure:', error);
+      throw error;
+    }
+  },
+
+  // Check for payment failures and send notifications
+  checkPaymentFailures: async () => {
+    try {
+      const response = await axios.get('http://localhost:5555/api/subscription/check-payment-failures');
+      return response.data;
+    } catch (error) {
+      console.error('Error checking payment failures:', error);
+      return { success: false, failures: [] };
+    }
+  },
+
+  // Format subscription status for display
   formatSubscriptionStatus: (subscription) => {
     if (!subscription) return 'Non-Activated User';
 
@@ -290,7 +804,7 @@ export const subscriptionUtils = {
     return daysLeft <= 7 && daysLeft > 0;
   },
 
-  // NEW: Create free subscription (for users who choose free plan)
+  // Create free subscription
   createFreeSubscription: async (userData) => {
     try {
       console.log('Creating free subscription for user:', userData.email);
@@ -316,7 +830,7 @@ export const subscriptionUtils = {
     }
   },
 
-  // NEW: Get user type string for display
+  // Get user type string for display
   getUserTypeString: (subscription) => {
     if (!subscription) return 'Non-Activated User';
     
@@ -333,12 +847,10 @@ export const subscriptionUtils = {
   validatePaymentData: (formData, plans, user) => {
     const errors = [];
 
-    // Check if plan is selected
     if (!formData.selectedPlan) {
       errors.push('Please select a subscription plan');
     }
 
-    // Check customer data
     if (!formData.name?.trim()) {
       errors.push('Full name is required');
     }
@@ -346,7 +858,6 @@ export const subscriptionUtils = {
     if (!formData.email?.trim()) {
       errors.push('Email address is required');
     } else {
-      // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email.trim())) {
         errors.push('Please enter a valid email address');
@@ -356,25 +867,22 @@ export const subscriptionUtils = {
     if (!formData.phoneNumber?.trim()) {
       errors.push('Phone number is required');
     } else {
-      // Validate Sri Lankan phone number format
       const cleanPhone = formData.phoneNumber.replace(/\D/g, '');
       if (cleanPhone.length < 9 || cleanPhone.length > 12) {
         errors.push('Please enter a valid Sri Lankan phone number');
       }
     }
 
-    // Check agreement
     if (!formData.agreement) {
       errors.push('Please agree to the terms and conditions');
     }
 
-    // Validate selected plan
     if (formData.selectedPlan) {
       const selectedPlan = plans.find(plan => plan.id === parseInt(formData.selectedPlan));
       if (!selectedPlan) {
         errors.push('Selected plan is not valid');
       } else {
-        const amount = selectedPlan.monthlyPrice; // Only monthly now
+        const amount = selectedPlan.monthlyPrice;
 
         if (amount > 0 && amount < 10) {
           errors.push('Payment amount must be at least LKR 10.00');
@@ -390,12 +898,10 @@ export const subscriptionUtils = {
 
   // Format phone number for PayHere
   formatPhoneForPayHere: (phoneNumber) => {
-    if (!phoneNumber) return '0771234567'; // Fallback
+    if (!phoneNumber) return '0771234567';
 
-    // Remove all non-digits
     let cleanPhone = phoneNumber.toString().replace(/\D/g, '');
 
-    // Handle different formats
     if (cleanPhone.startsWith('94')) {
       return '0' + cleanPhone.substring(2);
     } else if (cleanPhone.startsWith('0')) {
@@ -404,7 +910,6 @@ export const subscriptionUtils = {
       return '0' + cleanPhone;
     }
 
-    // Fallback for invalid numbers
     return '0771234567';
   },
 
@@ -444,12 +949,10 @@ export const subscriptionUtils = {
     try {
       console.log('Submitting to PayHere...');
 
-      // Validate payment data structure
       if (!paymentData || typeof paymentData !== 'object') {
         throw new Error('Invalid payment data structure');
       }
 
-      // Check required PayHere fields
       const requiredFields = [
         'merchant_id', 'return_url', 'cancel_url', 'notify_url',
         'order_id', 'items', 'currency', 'amount',
@@ -465,14 +968,12 @@ export const subscriptionUtils = {
         throw new Error(`Missing PayHere fields: ${missingFields.join(', ')}`);
       }
 
-      // Create form element
       const form = document.createElement('form');
       form.method = 'POST';
       form.action = 'https://sandbox.payhere.lk/pay/checkout';
       form.target = '_self';
       form.style.display = 'none';
 
-      // Add all fields to form
       let fieldCount = 0;
       Object.entries(paymentData).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') {
@@ -489,19 +990,15 @@ export const subscriptionUtils = {
         throw new Error('No valid fields to submit to PayHere');
       }
 
-      // Add to DOM and submit
       document.body.appendChild(form);
 
       console.log(`Submitting form with ${fieldCount} fields to PayHere`);
       console.log(`URL: ${form.action}`);
 
-      // Submit form
       form.submit();
 
-      // Call success callback
       if (onSuccess) onSuccess();
 
-      // Cleanup after delay
       setTimeout(() => {
         try {
           if (document.body.contains(form)) {
@@ -555,6 +1052,145 @@ export const subscriptionUtils = {
     } catch (error) {
       console.error('PayHere configuration test failed:', error.message);
       return { success: false, error: error.message };
+    }
+  },
+
+  // ==================== UTILITY FUNCTIONS ====================
+
+  // Calculate days between dates
+  calculateDaysBetween: (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  },
+
+  // Format currency for display
+  formatCurrency: (amount, currency = 'LKR') => {
+    const formatter = new Intl.NumberFormat('en-LK', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2
+    });
+    return formatter.format(amount);
+  },
+
+  // Get plan display name
+  getPlanDisplayName: (planId) => {
+    switch (planId) {
+      case '1':
+        return 'Free Plan';
+      case '2':
+        return 'Premium Plan';
+      default:
+        return 'Unknown Plan';
+    }
+  },
+
+  // Check if subscription has expired
+  isSubscriptionExpired: (subscription) => {
+    if (!subscription || !subscription.endDate) return false;
+    return new Date(subscription.endDate) < new Date();
+  },
+
+  // Get subscription status color for UI
+  getSubscriptionStatusColor: (subscription) => {
+    if (!subscription) return 'gray';
+    
+    switch (subscription.status) {
+      case 'active':
+        return 'green';
+      case 'expired':
+        return 'red';
+      case 'cancelled':
+        return 'orange';
+      case 'suspended':
+        return 'yellow';
+      default:
+        return 'gray';
+    }
+  },
+
+  // Generate unique order ID
+  generateOrderId: () => {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    return `ORDER_${timestamp}_${random}`;
+  },
+
+  // Clean phone number for processing
+  cleanPhoneNumber: (phoneNumber) => {
+    if (!phoneNumber) return '';
+    return phoneNumber.toString().replace(/\D/g, '');
+  },
+
+  // Validate email format
+  isValidEmail: (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  },
+
+  // Get time until subscription expires
+  getTimeUntilExpiry: (subscription) => {
+    if (!subscription || !subscription.endDate) return null;
+    
+    const now = new Date();
+    const endDate = new Date(subscription.endDate);
+    const diffTime = endDate - now;
+    
+    if (diffTime <= 0) return 'Expired';
+    
+    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      return `${days} day${days !== 1 ? 's' : ''}`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    } else {
+      return 'Less than 1 hour';
+    }
+  },
+
+  // Format date for display
+  formatDate: (date, options = {}) => {
+    const defaultOptions = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      ...options
+    };
+    
+    return new Date(date).toLocaleDateString('en-US', defaultOptions);
+  },
+
+  // Check if user has permission for action
+  hasPermission: (subscription, action) => {
+    if (!subscription) return false;
+    
+    const permissions = {
+      'create_business': subscription.planId === '1' || subscription.planId === '2',
+      'create_offer': subscription.planId === '1' || subscription.planId === '2',
+      'unlimited_businesses': subscription.planId === '2',
+      'unlimited_offers': subscription.planId === '2',
+      'premium_features': subscription.planId === '2'
+    };
+    
+    return permissions[action] || false;
+  },
+
+  // Log subscription activity
+  logActivity: async (userId, activity, details = {}) => {
+    try {
+      await axios.post('http://localhost:5555/api/subscription/log-activity', {
+        userId,
+        activity,
+        details,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      // Don't throw error for logging failures
     }
   }
 };
