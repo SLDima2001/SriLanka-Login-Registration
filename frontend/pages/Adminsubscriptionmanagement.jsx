@@ -6,10 +6,12 @@ import NavBar from '../component/Navbar';
 const AdminSubscriptionsManagement = () => {
   // State declarations
   const [subscriptions, setSubscriptions] = useState([]);
+  const [freeUsers, setFreeUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [filter, setFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('premium'); // New state for tab switching
   const [stats, setStats] = useState({
     totalAutoRenewal: 0,
     activeAutoRenewal: 0,
@@ -17,6 +19,7 @@ const AdminSubscriptionsManagement = () => {
     failedRenewal: 0,
     totalSubscriptions: 0
   });
+  const [freeUserStats, setFreeUserStats] = useState({}); // New state for free user stats
   const [monitoring, setMonitoring] = useState({
     dueTomorrow: 0,
     dueThisWeek: 0,
@@ -37,10 +40,10 @@ const AdminSubscriptionsManagement = () => {
   const { adminUser, isLoading, logoutAdmin } = useContext(AdminAuthContext);
   const navigate = useNavigate();
 
-  // API base URL - make sure this matches your backend
+  // API base URL
   const API_BASE_URL = 'http://localhost:5555';
 
-  // Enhanced styles following AdminOffersManagement pattern
+  // Enhanced styles
   const styles = {
     container: {
       fontSize: '16px',
@@ -85,6 +88,39 @@ const AdminSubscriptionsManagement = () => {
       fontSize: 'clamp(1rem, 2vw, 1.25rem)',
       opacity: '0.9',
       fontWeight: '400',
+    },
+    tabContainer: {
+      display: 'flex',
+      gap: '0.5rem',
+      marginBottom: '2rem',
+      background: 'white',
+      padding: '0.5rem',
+      borderRadius: '20px',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+      border: '1px solid #e5e7eb',
+    },
+    tab: {
+      padding: '1rem 2rem',
+      border: 'none',
+      background: 'transparent',
+      color: '#6b7280',
+      borderRadius: '16px',
+      cursor: 'pointer',
+      fontWeight: '700',
+      fontSize: '1rem',
+      transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      whiteSpace: 'nowrap',
+      position: 'relative',
+      overflow: 'hidden',
+      minWidth: 'fit-content',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+    },
+    tabActive: {
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+      boxShadow: '0 8px 24px rgba(102, 126, 234, 0.35), 0 0 0 1px rgba(102, 126, 234, 0.1)',
+      transform: 'scale(1.05)',
     },
     statsContainer: {
       display: 'grid',
@@ -133,16 +169,6 @@ const AdminSubscriptionsManagement = () => {
       borderRadius: '50%',
       animation: 'spin 1s linear infinite',
       marginBottom: '1rem',
-    },
-    spinnerSmall: {
-      display: 'inline-block',
-      width: '16px',
-      height: '16px',
-      border: '2px solid transparent',
-      borderTop: '2px solid currentColor',
-      borderRadius: '50%',
-      animation: 'spin 1s linear infinite',
-      marginRight: '8px',
     },
     alertContainer: {
       padding: '1rem 1.5rem',
@@ -292,6 +318,18 @@ const AdminSubscriptionsManagement = () => {
       boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
       letterSpacing: '0.025em',
     },
+    freePlanBadge: {
+      background: 'linear-gradient(135deg, #10b981, #059669)',
+      color: 'white',
+      padding: '0.5rem 1rem',
+      borderRadius: '9999px',
+      fontWeight: '700',
+      fontSize: '0.875rem',
+      display: 'inline-flex',
+      alignItems: 'center',
+      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)',
+      letterSpacing: '0.025em',
+    },
     statusBadge: {
       padding: '0.5rem 1rem',
       borderRadius: '9999px',
@@ -327,6 +365,39 @@ const AdminSubscriptionsManagement = () => {
       backgroundColor: '#fecaca',
       color: '#dc2626',
       border: '1px solid #f87171',
+    },
+    limitBadge: {
+      padding: '0.25rem 0.75rem',
+      borderRadius: '12px',
+      fontSize: '0.75rem',
+      fontWeight: '600',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.25rem',
+      margin: '0.25rem',
+    },
+    limitExceeded: {
+      backgroundColor: '#fef2f2',
+      color: '#dc2626',
+      border: '1px solid #fecaca',
+    },
+    limitNormal: {
+      backgroundColor: '#f0fdf4',
+      color: '#16a34a',
+      border: '1px solid #bbf7d0',
+    },
+    usageBar: {
+      width: '100%',
+      height: '8px',
+      backgroundColor: '#f1f5f9',
+      borderRadius: '4px',
+      overflow: 'hidden',
+      marginTop: '0.5rem',
+    },
+    usageProgress: {
+      height: '100%',
+      borderRadius: '4px',
+      transition: 'width 0.3s ease',
     },
     cardBody: {
       padding: '2rem',
@@ -377,6 +448,14 @@ const AdminSubscriptionsManagement = () => {
     },
     paymentIcon: {
       background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+      color: 'white',
+    },
+    usageIcon: {
+      background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+      color: 'white',
+    },
+    businessIcon: {
+      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
       color: 'white',
     },
     sectionTitle: {
@@ -547,6 +626,22 @@ const AdminSubscriptionsManagement = () => {
       padding: '1rem',
       marginTop: '1rem',
     },
+    businessList: {
+      maxHeight: '150px',
+      overflow: 'auto',
+      background: '#f8fafc',
+      padding: '0.75rem',
+      borderRadius: '6px',
+      fontSize: '0.75rem',
+      marginTop: '0.5rem',
+    },
+    businessItem: {
+      padding: '0.25rem 0',
+      borderBottom: '1px solid #e2e8f0',
+    },
+    businessItemLast: {
+      borderBottom: 'none',
+    },
   };
 
   // Clear success message after 5 seconds
@@ -561,9 +656,13 @@ const AdminSubscriptionsManagement = () => {
 
   // Fetch data when component mounts or filter changes
   useEffect(() => {
-    fetchSubscriptions();
-    fetchMonitoringData();
-  }, [filter, pagination.currentPage]);
+    if (activeTab === 'premium') {
+      fetchSubscriptions();
+      fetchMonitoringData();
+    } else if (activeTab === 'free') {
+      fetchFreeUsers();
+    }
+  }, [filter, pagination.currentPage, activeTab]);
 
   // API functions
   const fetchSubscriptions = async () => {
@@ -622,6 +721,68 @@ const AdminSubscriptionsManagement = () => {
       setError(`Failed to fetch subscriptions: ${error.message}`);
       setSubscriptions([]);
       setStats({});
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // New function to fetch free users
+  const fetchFreeUsers = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      console.log('Fetching free users with filter:', filter);
+
+      const params = new URLSearchParams({
+        page: pagination.currentPage.toString(),
+        limit: pagination.limit.toString(),
+      });
+
+      if (filter !== 'all') {
+        params.append('status', filter);
+      }
+
+      const url = `${API_BASE_URL}/api/admin/free-subscription-users?${params}`;
+      console.log('Fetching from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Received free users data:', data);
+
+      if (data.success) {
+        setFreeUsers(data.freeUsers || []);
+        setFreeUserStats(data.stats || {});
+        setPagination(prev => ({
+          ...prev,
+          ...data.pagination
+        }));
+        console.log(`Set ${data.freeUsers?.length || 0} free users`);
+      } else {
+        console.error('API returned success: false');
+        setError(data.message || 'Failed to fetch free users');
+      }
+    } catch (error) {
+      console.error('Fetch free users error:', error);
+      setError(`Failed to fetch free users: ${error.message}`);
+      setFreeUsers([]);
+      setFreeUserStats({});
     } finally {
       setLoading(false);
     }
@@ -730,11 +891,27 @@ const AdminSubscriptionsManagement = () => {
     );
   };
 
+  const getUsageProgressColor = (percentage) => {
+    if (percentage >= 100) return 'linear-gradient(135deg, #dc2626, #b91c1c)';
+    if (percentage >= 80) return 'linear-gradient(135deg, #d97706, #b45309)';
+    if (percentage >= 60) return 'linear-gradient(135deg, #ca8a04, #a16207)';
+    return 'linear-gradient(135deg, #059669, #047857)';
+  };
+
   // Event handlers
   const handleFilterChange = (newFilter) => {
     console.log('Changing filter to:', newFilter);
     setFilter(newFilter);
     setPagination(prev => ({ ...prev, currentPage: 1 }));
+  };
+
+  const handleTabChange = (newTab) => {
+    console.log('Changing tab to:', newTab);
+    setActiveTab(newTab);
+    setFilter('all');
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    setError('');
+    setSuccess('');
   };
 
   const handlePageChange = (newPage) => {
@@ -753,25 +930,59 @@ const AdminSubscriptionsManagement = () => {
     setShowDetailsModal(false);
   };
 
-  // Get filtered subscriptions
-  const getFilteredSubscriptions = () => {
-    if (filter === 'all') return subscriptions;
-    return subscriptions.filter(sub => sub.status === filter);
+  // Get filtered data based on active tab
+  const getFilteredData = () => {
+    if (activeTab === 'premium') {
+      if (filter === 'all') return subscriptions;
+      return subscriptions.filter(sub => sub.status === filter);
+    } else {
+      if (filter === 'all') return freeUsers;
+      return freeUsers.filter(user => user.status === filter);
+    }
   };
 
   const getFilterCount = (filterType) => {
-    if (filterType === 'all') return subscriptions.length;
-    return subscriptions.filter(sub => sub.status === filterType).length;
+    const data = activeTab === 'premium' ? subscriptions : freeUsers;
+    if (filterType === 'all') return data.length;
+    return data.filter(item => item.status === filterType).length;
+  };
+
+  // Get current stats based on active tab
+  const getCurrentStats = () => {
+    if (activeTab === 'premium') {
+      return [
+        { number: stats.totalSubscriptions || subscriptions.length, label: 'Total Subscriptions' },
+        { number: stats.activeAutoRenewal || 0, label: 'Active Auto-Renewal' },
+        { number: stats.pendingRenewal || 0, label: 'Pending Renewal' },
+        { number: stats.failedRenewal || 0, label: 'Failed Renewals' }
+      ];
+    } else {
+      return [
+        { number: freeUserStats.totalFreeUsers || freeUsers.length, label: 'Total Free Users' },
+        { number: freeUserStats.activeFreeUsers || 0, label: 'Active Free Users' },
+        { number: freeUserStats.usersExceedingLimits || 0, label: 'Exceeding Limits' },
+        { number: freeUserStats.conversionOpportunity || 0, label: 'Conversion Opportunity' }
+      ];
+    }
+  };
+
+  // Get available filters based on active tab
+  const getAvailableFilters = () => {
+    if (activeTab === 'premium') {
+      return ['all', 'active', 'pending_renewal', 'payment_failed', 'cancelled', 'inactive'];
+    } else {
+      return ['all', 'active', 'inactive'];
+    }
   };
 
   // Render loading state
-  if (loading && subscriptions.length === 0) {
+  if (loading && ((activeTab === 'premium' && subscriptions.length === 0) || (activeTab === 'free' && freeUsers.length === 0))) {
     return (
       <div style={styles.container}>
         <NavBar adminUser={adminUser} logoutAdmin={logoutAdmin} />
         <div style={styles.loadingSpinner}>
           <div style={styles.spinner}></div>
-          <p>Loading subscriptions...</p>
+          <p>Loading {activeTab} users...</p>
           <button 
             onClick={testConnection}
             style={{...styles.btn, ...styles.btnTest, marginTop: '1rem'}}
@@ -794,60 +1005,104 @@ const AdminSubscriptionsManagement = () => {
     <div style={styles.container}>
       <NavBar adminUser={adminUser} logoutAdmin={logoutAdmin} />
       
-      {/* Header */}
-      {/* <div style={styles.header}>
+      {/* Header
+      <div style={styles.header}>
         <div style={styles.headerOverlay}></div>
         <div style={styles.headerContent}>
-          <h1 style={styles.headerTitle}>Subscription Management</h1>
-          <p style={styles.headerSubtitle}>Monitor and manage premium subscriptions with auto-renewal</p>
+          <h1 style={styles.headerTitle}>User Management Dashboard</h1>
+          <p style={styles.headerSubtitle}>Monitor and manage both premium subscriptions and free users</p>
         </div>
       </div> */}
 
-      {/* Statistics */}
-      <div style={styles.statsContainer}>
-        <div style={styles.statCard} className="stat-card-enhanced">
-          <div style={styles.statNumber}>{stats.totalSubscriptions || subscriptions.length}</div>
-          <div style={styles.statLabel}>Total Subscriptions</div>
-        </div>
-        <div style={styles.statCard} className="stat-card-enhanced">
-          <div style={styles.statNumber}>{stats.activeAutoRenewal || 0}</div>
-          <div style={styles.statLabel}>Active Auto-Renewal</div>
-        </div>
-        <div style={styles.statCard} className="stat-card-enhanced">
-          <div style={styles.statNumber}>{stats.pendingRenewal || 0}</div>
-          <div style={styles.statLabel}>Pending Renewal</div>
-        </div>
-        <div style={styles.statCard} className="stat-card-enhanced">
-          <div style={styles.statNumber}>{stats.failedRenewal || 0}</div>
-          <div style={styles.statLabel}>Failed Renewals</div>
-        </div>
+      {/* Tab Navigation */}
+      <div style={styles.tabContainer}>
+        <button
+          style={{
+            ...styles.tab,
+            ...(activeTab === 'premium' ? styles.tabActive : {})
+          }}
+          onClick={() => handleTabChange('premium')}
+          className="tab-enhanced"
+        >
+          💳 Premium Subscriptions
+        </button>
+        <button
+          style={{
+            ...styles.tab,
+            ...(activeTab === 'free' ? styles.tabActive : {})
+          }}
+          onClick={() => handleTabChange('free')}
+          className="tab-enhanced"
+        >
+          🆓 Free Users
+        </button>
       </div>
 
-      {/* Renewal Monitoring */}
-      <div style={styles.monitoringContainer}>
-        <h2 style={styles.monitoringTitle}>
-          <span>📊</span>
-          Renewal Monitoring Dashboard
-        </h2>
-        <div style={styles.monitoringGrid}>
-          <div style={styles.monitoringItem}>
-            <span style={{fontWeight: '600', color: '#475569'}}>Due Tomorrow:</span>
-            <strong style={{color: '#dc2626', fontSize: '1.125rem'}}>{monitoring.dueTomorrow || 0}</strong>
+      {/* Statistics */}
+      <div style={styles.statsContainer}>
+        {getCurrentStats().map((stat, index) => (
+          <div key={index} style={styles.statCard} className="stat-card-enhanced">
+            <div style={styles.statNumber}>{stat.number}</div>
+            <div style={styles.statLabel}>{stat.label}</div>
           </div>
-          <div style={styles.monitoringItem}>
-            <span style={{fontWeight: '600', color: '#475569'}}>Due This Week:</span>
-            <strong style={{color: '#d97706', fontSize: '1.125rem'}}>{monitoring.dueThisWeek || 0}</strong>
-          </div>
-          <div style={styles.monitoringItem}>
-            <span style={{fontWeight: '600', color: '#475569'}}>Failed Renewals:</span>
-            <strong style={{color: '#7c3aed', fontSize: '1.125rem'}}>{monitoring.failedRenewals || 0}</strong>
-          </div>
-          <div style={styles.monitoringItem}>
-            <span style={{fontWeight: '600', color: '#475569'}}>Cancelled (30 days):</span>
-            <strong style={{color: '#059669', fontSize: '1.125rem'}}>{monitoring.cancelledDueToFailure || 0}</strong>
+        ))}
+      </div>
+
+      {/* Premium Tab - Renewal Monitoring (only show for premium tab) */}
+      {activeTab === 'premium' && (
+        <div style={styles.monitoringContainer}>
+          <h2 style={styles.monitoringTitle}>
+            <span>📊</span>
+            Renewal Monitoring Dashboard
+          </h2>
+          <div style={styles.monitoringGrid}>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Due Tomorrow:</span>
+              <strong style={{color: '#dc2626', fontSize: '1.125rem'}}>{monitoring.dueTomorrow || 0}</strong>
+            </div>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Due This Week:</span>
+              <strong style={{color: '#d97706', fontSize: '1.125rem'}}>{monitoring.dueThisWeek || 0}</strong>
+            </div>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Failed Renewals:</span>
+              <strong style={{color: '#7c3aed', fontSize: '1.125rem'}}>{monitoring.failedRenewals || 0}</strong>
+            </div>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Cancelled (30 days):</span>
+              <strong style={{color: '#059669', fontSize: '1.125rem'}}>{monitoring.cancelledDueToFailure || 0}</strong>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Free Users Tab - Summary (only show for free tab) */}
+      {activeTab === 'free' && (
+        <div style={styles.monitoringContainer}>
+          <h2 style={styles.monitoringTitle}>
+            <span>📈</span>
+            Free Users Summary
+          </h2>
+          <div style={styles.monitoringGrid}>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Average Businesses:</span>
+              <strong style={{color: '#3b82f6', fontSize: '1.125rem'}}>{freeUserStats.averageBusinessesPerUser || '0.0'}</strong>
+            </div>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Average Offers:</span>
+              <strong style={{color: '#8b5cf6', fontSize: '1.125rem'}}>{freeUserStats.averageOffersPerUser || '0.0'}</strong>
+            </div>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Users with Businesses:</span>
+              <strong style={{color: '#10b981', fontSize: '1.125rem'}}>{freeUserStats.usersWithBusinesses || 0}</strong>
+            </div>
+            <div style={styles.monitoringItem}>
+              <span style={{fontWeight: '600', color: '#475569'}}>Users with Offers:</span>
+              <strong style={{color: '#f59e0b', fontSize: '1.125rem'}}>{freeUserStats.usersWithOffers || 0}</strong>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Alerts */}
       {error && (
@@ -882,7 +1137,7 @@ const AdminSubscriptionsManagement = () => {
 
       {/* Filter Tabs */}
       <div style={styles.filterTabs}>
-        {['all', 'active', 'pending_renewal', 'payment_failed', 'cancelled', 'inactive'].map((filterType) => (
+        {getAvailableFilters().map((filterType) => (
           <button
             key={filterType}
             style={{
@@ -900,19 +1155,19 @@ const AdminSubscriptionsManagement = () => {
         ))}
       </div>
 
-      {/* Subscriptions List */}
+      {/* Users List */}
       <div style={styles.subscriptionsList}>
-        {getFilteredSubscriptions().length === 0 ? (
+        {getFilteredData().length === 0 ? (
           <div style={styles.noSubscriptions}>
-            <div style={styles.noSubscriptionsIcon}>💳</div>
-            <h3>No subscriptions found</h3>
+            <div style={styles.noSubscriptionsIcon}>{activeTab === 'premium' ? '💳' : '🆓'}</div>
+            <h3>No {activeTab} users found</h3>
             <p>
-              {subscriptions.length === 0 
-                ? 'No subscription data available. Check your backend connection and database.'
-                : 'No subscriptions match the current filter criteria.'
+              {(activeTab === 'premium' ? subscriptions : freeUsers).length === 0 
+                ? `No ${activeTab} user data available. Check your backend connection and database.`
+                : `No ${activeTab} users match the current filter criteria.`
               }
             </p>
-            {subscriptions.length === 0 && (
+            {(activeTab === 'premium' ? subscriptions : freeUsers).length === 0 && (
               <div style={{marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap'}}>
                 <button 
                   onClick={testConnection}
@@ -925,7 +1180,11 @@ const AdminSubscriptionsManagement = () => {
                   onClick={() => {
                     setError('');
                     setSuccess('');
-                    fetchSubscriptions();
+                    if (activeTab === 'premium') {
+                      fetchSubscriptions();
+                    } else {
+                      fetchFreeUsers();
+                    }
                   }}
                   style={{...styles.btn, ...styles.btnPrimary}}
                   className="btn-enhanced"
@@ -936,208 +1195,446 @@ const AdminSubscriptionsManagement = () => {
             )}
           </div>
         ) : (
-          getFilteredSubscriptions().map((subscription, index) => (
-            <div key={subscription._id || index} style={styles.subscriptionCard} className="subscription-card-enhanced">
-              <div style={styles.cardHeader}>
-                <div style={styles.userSection}>
-                  <h3 style={styles.cardTitle}>
-                    {subscription.userDetails?.firstName || 'Unknown'} {subscription.userDetails?.lastName || 'User'}
-                  </h3>
-                  <div style={styles.planBadge}>
-                    {subscription.planName || `Plan ${subscription.planId}` || 'Unknown Plan'}
-                  </div>
-                </div>
-                <div>
-                  {getStatusBadge(subscription.status)}
-                </div>
-              </div>
-
-              <div style={styles.cardBody}>
-                <div style={styles.sectionsContainer}>
-                  {/* Subscription Details Section */}
-                  <div style={styles.section}>
-                    <div style={styles.sectionHeader}>
-                      <div style={{...styles.sectionIcon, ...styles.subscriptionIcon}}>💳</div>
-                      <h4 style={styles.sectionTitle}>Subscription Details</h4>
+          getFilteredData().map((item, index) => (
+            <div key={item._id || index} style={styles.subscriptionCard} className="subscription-card-enhanced">
+              {/* Render Premium Subscription Card */}
+              {activeTab === 'premium' ? (
+                <>
+                  <div style={styles.cardHeader}>
+                    <div style={styles.userSection}>
+                      <h3 style={styles.cardTitle}>
+                        {item.userDetails?.firstName || 'Unknown'} {item.userDetails?.lastName || 'User'}
+                      </h3>
+                      <div style={styles.planBadge}>
+                        {item.planName || `Plan ${item.planId}` || 'Unknown Plan'}
+                      </div>
                     </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Plan ID:</span>
-                      <span style={styles.value}>{subscription.planId || 'N/A'}</span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Amount:</span>
-                      <span style={styles.value}>
-                        {formatCurrency(subscription.amount, subscription.currency)}
-                      </span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Billing Cycle:</span>
-                      <span style={styles.value}>
-                        {subscription.billingCycle || 'Monthly'}
-                      </span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Auto Renew:</span>
-                      <span style={styles.value}>
-                        {subscription.autoRenew ? '✅ Enabled' : '❌ Disabled'}
-                      </span>
-                    </div>
-                    <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                      <span style={styles.label}>Created:</span>
-                      <span style={styles.value}>
-                        {formatDate(subscription.createdAt || subscription.startDate)}
-                      </span>
+                    <div>
+                      {getStatusBadge(item.status)}
                     </div>
                   </div>
 
-                  {/* User Information Section */}
-                  <div style={styles.section}>
-                    <div style={styles.sectionHeader}>
-                      <div style={{...styles.sectionIcon, ...styles.userIcon}}>👤</div>
-                      <h4 style={styles.sectionTitle}>User Information</h4>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>User ID:</span>
-                      <span style={styles.value}>#{subscription.userId || 'N/A'}</span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Email:</span>
-                      <span style={styles.value}>
-                        {subscription.userDetails?.email || subscription.userEmail || 'N/A'}
-                      </span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Business:</span>
-                      <span style={styles.value}>
-                        {subscription.userDetails?.businessName || 'N/A'}
-                      </span>
-                    </div>
-                    <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                      <span style={styles.label}>User Type:</span>
-                      <span style={styles.value}>
-                        {subscription.userDetails?.userType || 'N/A'}
-                      </span>
-                    </div>
-                  </div>
+                  <div style={styles.cardBody}>
+                    <div style={styles.sectionsContainer}>
+                      {/* Subscription Details Section */}
+                      <div style={styles.section}>
+                        <div style={styles.sectionHeader}>
+                          <div style={{...styles.sectionIcon, ...styles.subscriptionIcon}}>💳</div>
+                          <h4 style={styles.sectionTitle}>Subscription Details</h4>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Plan ID:</span>
+                          <span style={styles.value}>{item.planId || 'N/A'}</span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Amount:</span>
+                          <span style={styles.value}>
+                            {formatCurrency(item.amount, item.currency)}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Billing Cycle:</span>
+                          <span style={styles.value}>
+                            {item.billingCycle || 'Monthly'}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Auto Renew:</span>
+                          <span style={styles.value}>
+                            {item.autoRenew ? '✅ Enabled' : '❌ Disabled'}
+                          </span>
+                        </div>
+                        <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                          <span style={styles.label}>Created:</span>
+                          <span style={styles.value}>
+                            {formatDate(item.createdAt || item.startDate)}
+                          </span>
+                        </div>
+                      </div>
 
-                  {/* Renewal Information Section */}
-                  <div style={styles.section}>
-                    <div style={styles.sectionHeader}>
-                      <div style={{...styles.sectionIcon, ...styles.renewalIcon}}>🔄</div>
-                      <h4 style={styles.sectionTitle}>Renewal Information</h4>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Next Billing:</span>
-                      <span style={styles.value}>
-                        {formatDate(subscription.nextBillingDate)}
-                      </span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Days Until:</span>
-                      <span style={styles.value}>
-                        {subscription.daysUntilRenewal !== null && subscription.daysUntilRenewal !== undefined
-                          ? `${subscription.daysUntilRenewal} days`
-                          : 'N/A'
-                        }
-                      </span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>End Date:</span>
-                      <span style={styles.value}>
-                        {formatDate(subscription.endDate)}
-                      </span>
-                    </div>
-                    <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                      <span style={styles.label}>Renewal Token:</span>
-                      <span style={styles.value}>
-                        {subscription.payhereRecurringToken ? '✅ Active' : '❌ None'}
-                      </span>
-                    </div>
-                  </div>
+                      {/* User Information Section */}
+                      <div style={styles.section}>
+                        <div style={styles.sectionHeader}>
+                          <div style={{...styles.sectionIcon, ...styles.userIcon}}>👤</div>
+                          <h4 style={styles.sectionTitle}>User Information</h4>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>User ID:</span>
+                          <span style={styles.value}>#{item.userId || 'N/A'}</span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Email:</span>
+                          <span style={styles.value}>
+                            {item.userDetails?.email || item.userEmail || 'N/A'}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Business:</span>
+                          <span style={styles.value}>
+                            {item.userDetails?.businessName || 'N/A'}
+                          </span>
+                        </div>
+                        <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                          <span style={styles.label}>User Type:</span>
+                          <span style={styles.value}>
+                            {item.userDetails?.userType || 'N/A'}
+                          </span>
+                        </div>
+                      </div>
 
-                  {/* Payment Information Section */}
-                  <div style={styles.section}>
-                    <div style={styles.sectionHeader}>
-                      <div style={{...styles.sectionIcon, ...styles.paymentIcon}}>💰</div>
-                      <h4 style={styles.sectionTitle}>Payment Information</h4>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Payment Method:</span>
-                      <span style={styles.value}>
-                        {subscription.paymentMethod || 'PayHere'}
-                      </span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Renewal Attempts:</span>
-                      <span style={styles.value}>
-                        {subscription.renewalAttempts || 0} / {subscription.maxRenewalAttempts || 3}
-                      </span>
-                    </div>
-                    <div style={styles.detailItem}>
-                      <span style={styles.label}>Last Renewal:</span>
-                      <span style={styles.value}>
-                        {formatDate(subscription.lastRenewalDate)}
-                      </span>
-                    </div>
-                    <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                      <span style={styles.label}>Payment Failure:</span>
-                      <span style={styles.value}>
-                        {subscription.paymentFailure ? '⚠️ Yes' : '✅ No'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                      {/* Renewal Information Section */}
+                      <div style={styles.section}>
+                        <div style={styles.sectionHeader}>
+                          <div style={{...styles.sectionIcon, ...styles.renewalIcon}}>🔄</div>
+                          <h4 style={styles.sectionTitle}>Renewal Information</h4>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Next Billing:</span>
+                          <span style={styles.value}>
+                            {formatDate(item.nextBillingDate)}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Days Until:</span>
+                          <span style={styles.value}>
+                            {item.daysUntilRenewal !== null && item.daysUntilRenewal !== undefined
+                              ? `${item.daysUntilRenewal} days`
+                              : 'N/A'
+                            }
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>End Date:</span>
+                          <span style={styles.value}>
+                            {formatDate(item.endDate)}
+                          </span>
+                        </div>
+                        <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                          <span style={styles.label}>Renewal Token:</span>
+                          <span style={styles.value}>
+                            {item.payhereRecurringToken ? '✅ Active' : '❌ None'}
+                          </span>
+                        </div>
+                      </div>
 
-                {/* Payment Issues Warning */}
-                {(subscription.renewalAttempts > 0 || subscription.paymentFailure) && (
-                  <div style={styles.warningBox}>
-                    <h4 style={{ color: '#dc2626', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      ⚠️ Payment Issues Detected
-                    </h4>
-                    {subscription.renewalAttempts > 0 && (
-                      <p style={{margin: '0.25rem 0', fontSize: '0.875rem'}}>
-                        <strong>Renewal Attempts:</strong> {subscription.renewalAttempts} of {subscription.maxRenewalAttempts || 3}
-                      </p>
+                      {/* Payment Information Section */}
+                      <div style={styles.section}>
+                        <div style={styles.sectionHeader}>
+                          <div style={{...styles.sectionIcon, ...styles.paymentIcon}}>💰</div>
+                          <h4 style={styles.sectionTitle}>Payment Information</h4>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Payment Method:</span>
+                          <span style={styles.value}>
+                            {item.paymentMethod || 'PayHere'}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Renewal Attempts:</span>
+                          <span style={styles.value}>
+                            {item.renewalAttempts || 0} / {item.maxRenewalAttempts || 3}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Last Renewal:</span>
+                          <span style={styles.value}>
+                            {formatDate(item.lastRenewalDate)}
+                          </span>
+                        </div>
+                        <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                          <span style={styles.label}>Payment Failure:</span>
+                          <span style={styles.value}>
+                            {item.paymentFailure ? '⚠️ Yes' : '✅ No'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Issues Warning */}
+                    {(item.renewalAttempts > 0 || item.paymentFailure) && (
+                      <div style={styles.warningBox}>
+                        <h4 style={{ color: '#dc2626', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          ⚠️ Payment Issues Detected
+                        </h4>
+                        {item.renewalAttempts > 0 && (
+                          <p style={{margin: '0.25rem 0', fontSize: '0.875rem'}}>
+                            <strong>Renewal Attempts:</strong> {item.renewalAttempts} of {item.maxRenewalAttempts || 3}
+                          </p>
+                        )}
+                        {item.paymentFailure && (
+                          <p style={{margin: '0.25rem 0', fontSize: '0.875rem'}}>
+                            <strong>Payment Status:</strong> Failed - requires attention
+                          </p>
+                        )}
+                        <p style={{margin: '0.25rem 0', fontSize: '0.875rem', color: '#7c2d12'}}>
+                          This subscription may require manual intervention or customer contact.
+                        </p>
+                      </div>
                     )}
-                    {subscription.paymentFailure && (
-                      <p style={{margin: '0.25rem 0', fontSize: '0.875rem'}}>
-                        <strong>Payment Status:</strong> Failed - requires attention
-                      </p>
-                    )}
-                    <p style={{margin: '0.25rem 0', fontSize: '0.875rem', color: '#7c2d12'}}>
-                      This subscription may require manual intervention or customer contact.
-                    </p>
-                  </div>
-                )}
 
-                {/* Action Buttons */}
-                <div style={styles.actionsContainer}>
-                  <button
-                    onClick={() => openModal(subscription)}
-                    style={{...styles.btn, ...styles.btnPrimary}}
-                    className="btn-enhanced"
-                    disabled={processing}
-                  >
-                    📋 View Details
-                  </button>
-                  
-                  {subscription.userDetails?.email && (
-                    <button
-                      onClick={() => {
-                        const email = subscription.userDetails.email;
-                        const subject = `Regarding your ${subscription.planName} subscription`;
-                        const body = `Dear ${subscription.userDetails.firstName || 'Customer'},\n\nWe are contacting you regarding your subscription.\n\nBest regards,\nSupport Team`;
-                        window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-                      }}
-                      style={{...styles.btn, ...styles.btnSecondary}}
-                      className="btn-enhanced"
-                      disabled={processing}
-                    >
-                      📧 Contact User
-                    </button>
-                  )}
-                </div>
-              </div>
+                    {/* Action Buttons */}
+                    <div style={styles.actionsContainer}>
+                      <button
+                        onClick={() => openModal(item)}
+                        style={{...styles.btn, ...styles.btnPrimary}}
+                        className="btn-enhanced"
+                        disabled={processing}
+                      >
+                        📋 View Details
+                      </button>
+                      
+                      {item.userDetails?.email && (
+                        <button
+                          onClick={() => {
+                            const email = item.userDetails.email;
+                            const subject = `Regarding your ${item.planName} subscription`;
+                            const body = `Dear ${item.userDetails.firstName || 'Customer'},\n\nWe are contacting you regarding your subscription.\n\nBest regards,\nSupport Team`;
+                            window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                          }}
+                          style={{...styles.btn, ...styles.btnSecondary}}
+                          className="btn-enhanced"
+                          disabled={processing}
+                        >
+                          📧 Contact User
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Render Free User Card */
+                <>
+                  <div style={styles.cardHeader}>
+                    <div style={styles.userSection}>
+                      <h3 style={styles.cardTitle}>
+                        {item.userDetails?.firstName || 'Unknown'} {item.userDetails?.lastName || 'User'}
+                      </h3>
+                      <div style={styles.freePlanBadge}>
+                        Free Plan
+                      </div>
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end'}}>
+                      {getStatusBadge(item.status)}
+                      <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap'}}>
+                        <span style={{
+                          ...styles.limitBadge, 
+                          ...(item.exceedsBusinessLimit ? styles.limitExceeded : styles.limitNormal)
+                        }}>
+                          🏢 {item.businessCount}/{item.freeLimits?.maxBusinesses || 1}
+                        </span>
+                        <span style={{
+                          ...styles.limitBadge, 
+                          ...(item.exceedsOfferLimit ? styles.limitExceeded : styles.limitNormal)
+                        }}>
+                          🎯 {item.offerCount}/{item.freeLimits?.maxOffers || 3}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={styles.cardBody}>
+                    <div style={styles.sectionsContainer}>
+                      {/* User Information Section */}
+                      <div style={styles.section}>
+                        <div style={styles.sectionHeader}>
+                          <div style={{...styles.sectionIcon, ...styles.userIcon}}>👤</div>
+                          <h4 style={styles.sectionTitle}>User Information</h4>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>User ID:</span>
+                          <span style={styles.value}>#{item.userId || 'N/A'}</span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Email:</span>
+                          <span style={styles.value}>
+                            {item.userDetails?.email || 'N/A'}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Business Name:</span>
+                          <span style={styles.value}>
+                            {item.userDetails?.businessName || 'N/A'}
+                          </span>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>User Type:</span>
+                          <span style={styles.value}>
+                            {item.userDetails?.userType || 'N/A'}
+                          </span>
+                        </div>
+                        <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                          <span style={styles.label}>Last Login:</span>
+                          <span style={styles.value}>
+                            {formatDate(item.userDetails?.lastLoginDate)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Usage Statistics Section */}
+                      <div style={styles.section}>
+                        <div style={styles.sectionHeader}>
+                          <div style={{...styles.sectionIcon, ...styles.usageIcon}}>📊</div>
+                          <h4 style={styles.sectionTitle}>Usage Statistics</h4>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Businesses:</span>
+                          <div style={{flex: 1, marginLeft: '1rem'}}>
+                            <span style={styles.value}>
+                              {item.businessCount} / {item.freeLimits?.maxBusinesses || 1} 
+                              {item.exceedsBusinessLimit && ' ⚠️ Limit Exceeded'}
+                            </span>
+                            <div style={styles.usageBar}>
+                              <div 
+                                style={{
+                                  ...styles.usageProgress,
+                                  width: `${Math.min(item.usagePercentage?.businesses || 0, 100)}%`,
+                                  background: getUsageProgressColor(item.usagePercentage?.businesses || 0)
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div style={styles.detailItem}>
+                          <span style={styles.label}>Offers:</span>
+                          <div style={{flex: 1, marginLeft: '1rem'}}>
+                            <span style={styles.value}>
+                              {item.offerCount} / {item.freeLimits?.maxOffers || 3}
+                              {item.exceedsOfferLimit && ' ⚠️ Limit Exceeded'}
+                            </span>
+                            <div style={styles.usageBar}>
+                              <div 
+                                style={{
+                                  ...styles.usageProgress,
+                                  width: `${Math.min(item.usagePercentage?.offers || 0, 100)}%`,
+                                  background: getUsageProgressColor(item.usagePercentage?.offers || 0)
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                          <span style={styles.label}>Subscription Date:</span>
+                          <span style={styles.value}>
+                            {formatDate(item.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Business Details Section */}
+                      {item.businessesData && item.businessesData.length > 0 && (
+                        <div style={styles.section}>
+                          <div style={styles.sectionHeader}>
+                            <div style={{...styles.sectionIcon, ...styles.businessIcon}}>🏢</div>
+                            <h4 style={styles.sectionTitle}>Businesses ({item.businessesData.length})</h4>
+                          </div>
+                          <div style={styles.businessList}>
+                            {item.businessesData.map((business, idx) => (
+                              <div 
+                                key={business._id || idx} 
+                                style={{
+                                  ...styles.businessItem,
+                                  ...(idx === item.businessesData.length - 1 ? styles.businessItemLast : {})
+                                }}
+                              >
+                                <strong>{business.name || 'Unnamed Business'}</strong>
+                                <br />
+                                <span style={{color: '#64748b'}}>
+                                  Status: {business.status || 'N/A'} | 
+                                  Category: {business.category || 'N/A'} | 
+                                  Created: {formatDate(business.createdAt)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Offers Details Section */}
+                      {item.offersData && item.offersData.length > 0 && (
+                        <div style={styles.section}>
+                          <div style={styles.sectionHeader}>
+                            <div style={{...styles.sectionIcon, background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white'}}>🎯</div>
+                            <h4 style={styles.sectionTitle}>Offers ({item.offersData.length})</h4>
+                          </div>
+                          <div style={styles.businessList}>
+                            {item.offersData.map((offer, idx) => (
+                              <div 
+                                key={offer._id || idx} 
+                                style={{
+                                  ...styles.businessItem,
+                                  ...(idx === item.offersData.length - 1 ? styles.businessItemLast : {})
+                                }}
+                              >
+                                <strong>{offer.title || 'Unnamed Offer'}</strong>
+                                <br />
+                                <span style={{color: '#64748b'}}>
+                                  Discount: {offer.discountPercentage || 0}% | 
+                                  Status: {offer.status || 'N/A'} | 
+                                  Created: {formatDate(offer.createdAt)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Limit Exceeded Warning */}
+                    {item.exceedsLimits && (
+                      <div style={styles.warningBox}>
+                        <h4 style={{ color: '#dc2626', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          ⚠️ Usage Limits Exceeded
+                        </h4>
+                        {item.exceedsBusinessLimit && (
+                          <p style={{margin: '0.25rem 0', fontSize: '0.875rem'}}>
+                            <strong>Business Limit:</strong> {item.businessCount} businesses (limit: {item.freeLimits?.maxBusinesses || 1})
+                          </p>
+                        )}
+                        {item.exceedsOfferLimit && (
+                          <p style={{margin: '0.25rem 0', fontSize: '0.875rem'}}>
+                            <strong>Offer Limit:</strong> {item.offerCount} offers (limit: {item.freeLimits?.maxOffers || 3})
+                          </p>
+                        )}
+                        <p style={{margin: '0.25rem 0', fontSize: '0.875rem', color: '#7c2d12'}}>
+                          This user is a potential candidate for premium plan conversion.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div style={styles.actionsContainer}>
+                      <button
+                        onClick={() => openModal(item)}
+                        style={{...styles.btn, ...styles.btnPrimary}}
+                        className="btn-enhanced"
+                        disabled={processing}
+                      >
+                        📋 View Details
+                      </button>
+                      
+                      {item.userDetails?.email && (
+                        <button
+                          onClick={() => {
+                            const email = item.userDetails.email;
+                            const subject = item.exceedsLimits 
+                              ? `Upgrade to Premium - Unlock More Features`
+                              : `Hello from our team`;
+                            const body = item.exceedsLimits 
+                              ? `Dear ${item.userDetails.firstName || 'Valued Customer'},\n\nWe noticed you're actively using our platform and have reached your free plan limits. Consider upgrading to our premium plan to unlock unlimited businesses and offers.\n\nBest regards,\nSupport Team`
+                              : `Dear ${item.userDetails.firstName || 'Customer'},\n\nThank you for using our platform.\n\nBest regards,\nSupport Team`;
+                            window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                          }}
+                          style={{...styles.btn, ...styles.btnSecondary}}
+                          className="btn-enhanced"
+                          disabled={processing}
+                        >
+                          {item.exceedsLimits ? '🚀 Promote Upgrade' : '📧 Contact User'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ))
         )}
@@ -1188,7 +1685,7 @@ const AdminSubscriptionsManagement = () => {
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>
-                📋 Subscription Details
+                {activeTab === 'premium' ? '📋 Subscription Details' : '📋 Free User Details'}
               </h3>
               <button
                 onClick={closeModal}
@@ -1200,170 +1697,146 @@ const AdminSubscriptionsManagement = () => {
             </div>
             
             <div style={styles.modalBody}>
-              {/* Subscription Summary */}
-              <div style={{
-                background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
-                padding: '1.5rem',
-                borderRadius: '12px',
-                marginBottom: '2rem',
-                border: '1px solid #0ea5e9',
-              }}>
-                <h4 style={{ margin: '0 0 1rem 0', color: '#0ea5e9', fontSize: '1.25rem', fontWeight: '700' }}>
-                  {selectedSubscription.planName || 'Subscription'} - {selectedSubscription.userDetails?.firstName} {selectedSubscription.userDetails?.lastName}
-                </h4>
-                <div style={{display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center'}}>
-                  {getStatusBadge(selectedSubscription.status)}
-                  <span style={{
-                    background: selectedSubscription.autoRenew ? '#d1fae5' : '#fef3c7',
-                    color: selectedSubscription.autoRenew ? '#059669' : '#d97706',
-                    padding: '0.25rem 0.75rem',
+              {activeTab === 'premium' ? (
+                /* Premium Subscription Modal Content */
+                <>
+                  {/* Subscription Summary */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+                    padding: '1.5rem',
                     borderRadius: '12px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600'
+                    marginBottom: '2rem',
+                    border: '1px solid #0ea5e9',
                   }}>
-                    {selectedSubscription.autoRenew ? '🔄 Auto-Renewal ON' : '⏸️ Auto-Renewal OFF'}
-                  </span>
-                </div>
-              </div>
+                    <h4 style={{ margin: '0 0 1rem 0', color: '#0ea5e9', fontSize: '1.25rem', fontWeight: '700' }}>
+                      {selectedSubscription.planName || 'Subscription'} - {selectedSubscription.userDetails?.firstName} {selectedSubscription.userDetails?.lastName}
+                    </h4>
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center'}}>
+                      {getStatusBadge(selectedSubscription.status)}
+                      <span style={{
+                        background: selectedSubscription.autoRenew ? '#d1fae5' : '#fef3c7',
+                        color: selectedSubscription.autoRenew ? '#059669' : '#d97706',
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '12px',
+                        fontSize: '0.75rem',
+                        fontWeight: '600'
+                      }}>
+                        {selectedSubscription.autoRenew ? '🔄 Auto-Renewal ON' : '⏸️ Auto-Renewal OFF'}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Detailed Information Sections */}
-              <div style={styles.sectionsContainer}>
-                {/* Complete Subscription Details */}
-                <div style={styles.section}>
-                  <div style={styles.sectionHeader}>
-                    <div style={{...styles.sectionIcon, ...styles.subscriptionIcon}}>💳</div>
-                    <h4 style={styles.sectionTitle}>Complete Subscription Data</h4>
+                  {/* Raw Data for Debugging */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionHeader}>
+                      <div style={{...styles.sectionIcon, background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: 'white'}}>🔍</div>
+                      <h4 style={styles.sectionTitle}>Raw Data (Debug)</h4>
+                    </div>
+                    <pre style={{
+                      background: '#f8fafc',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      overflow: 'auto',
+                      maxHeight: '300px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {JSON.stringify(selectedSubscription, null, 2)}
+                    </pre>
                   </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Subscription ID:</span>
-                    <span style={styles.value}>{selectedSubscription._id}</span>
+                </>
+              ) : (
+                /* Free User Modal Content */
+                <>
+                  {/* User Summary */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                    padding: '1.5rem',
+                    borderRadius: '12px',
+                    marginBottom: '2rem',
+                    border: '1px solid #22c55e',
+                  }}>
+                    <h4 style={{ margin: '0 0 1rem 0', color: '#22c55e', fontSize: '1.25rem', fontWeight: '700' }}>
+                      Free User - {selectedSubscription.userDetails?.firstName} {selectedSubscription.userDetails?.lastName}
+                    </h4>
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center'}}>
+                      {getStatusBadge(selectedSubscription.status)}
+                      {selectedSubscription.exceedsLimits && (
+                        <span style={{
+                          background: '#fef2f2',
+                          color: '#dc2626',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          border: '1px solid #fecaca'
+                        }}>
+                          ⚠️ Exceeds Limits - Conversion Opportunity
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>User ID:</span>
-                    <span style={styles.value}>{selectedSubscription.userId}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Plan ID:</span>
-                    <span style={styles.value}>{selectedSubscription.planId}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Plan Name:</span>
-                    <span style={styles.value}>{selectedSubscription.planName}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Status:</span>
-                    <span style={styles.value}>{selectedSubscription.status}</span>
-                  </div>
-                  <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                    <span style={styles.label}>Created At:</span>
-                    <span style={styles.value}>{formatDate(selectedSubscription.createdAt)}</span>
-                  </div>
-                </div>
 
-                {/* Payment & Billing Details */}
-                <div style={styles.section}>
-                  <div style={styles.sectionHeader}>
-                    <div style={{...styles.sectionIcon, ...styles.paymentIcon}}>💰</div>
-                    <h4 style={styles.sectionTitle}>Payment & Billing</h4>
+                  {/* Complete Usage Statistics */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionHeader}>
+                      <div style={{...styles.sectionIcon, ...styles.usageIcon}}>📊</div>
+                      <h4 style={styles.sectionTitle}>Complete Usage Analysis</h4>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <span style={styles.label}>Business Usage:</span>
+                      <span style={styles.value}>
+                        {selectedSubscription.businessCount} / {selectedSubscription.freeLimits?.maxBusinesses || 1} 
+                        ({selectedSubscription.usagePercentage?.businesses || 0}%)
+                      </span>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <span style={styles.label}>Offer Usage:</span>
+                      <span style={styles.value}>
+                        {selectedSubscription.offerCount} / {selectedSubscription.freeLimits?.maxOffers || 3}
+                        ({selectedSubscription.usagePercentage?.offers || 0}%)
+                      </span>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <span style={styles.label}>Exceeds Business Limit:</span>
+                      <span style={styles.value}>
+                        {selectedSubscription.exceedsBusinessLimit ? '⚠️ Yes' : '✅ No'}
+                      </span>
+                    </div>
+                    <div style={styles.detailItem}>
+                      <span style={styles.label}>Exceeds Offer Limit:</span>
+                      <span style={styles.value}>
+                        {selectedSubscription.exceedsOfferLimit ? '⚠️ Yes' : '✅ No'}
+                      </span>
+                    </div>
+                    <div style={{...styles.detailItem, ...styles.detailItemLast}}>
+                      <span style={styles.label}>Conversion Candidate:</span>
+                      <span style={styles.value}>
+                        {selectedSubscription.exceedsLimits ? '🎯 High Priority' : '💡 Monitor'}
+                      </span>
+                    </div>
                   </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Amount:</span>
-                    <span style={styles.value}>
-                      {formatCurrency(selectedSubscription.amount, selectedSubscription.currency)}
-                    </span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Currency:</span>
-                    <span style={styles.value}>{selectedSubscription.currency || 'LKR'}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Billing Cycle:</span>
-                    <span style={styles.value}>{selectedSubscription.billingCycle || 'Monthly'}</span>
-                  </div>
-                  <div style={styles.detailItem}>
-                    <span style={styles.label}>Payment Method:</span>
-                    <span style={styles.value}>{selectedSubscription.paymentMethod || 'PayHere'}</span>
-                  </div>
-                  <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                    <span style={styles.label}>PayHere Token:</span>
-                    <span style={styles.value}>
-                      {selectedSubscription.payhereRecurringToken ? 
-                        `${selectedSubscription.payhereRecurringToken.substring(0, 20)}...` : 
-                        'Not available'
-                      }
-                    </span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Technical Information */}
-              <div style={styles.section}>
-                <div style={styles.sectionHeader}>
-                  <div style={{...styles.sectionIcon, background: 'linear-gradient(135deg, #6b7280, #4b5563)', color: 'white'}}>⚙️</div>
-                  <h4 style={styles.sectionTitle}>Technical Information</h4>
-                </div>
-                <div style={styles.detailItem}>
-                  <span style={styles.label}>Auto Renew:</span>
-                  <span style={styles.value}>
-                    {selectedSubscription.autoRenew ? '✅ Enabled' : '❌ Disabled'}
-                  </span>
-                </div>
-                <div style={styles.detailItem}>
-                  <span style={styles.label}>Start Date:</span>
-                  <span style={styles.value}>{formatDate(selectedSubscription.startDate)}</span>
-                </div>
-                <div style={styles.detailItem}>
-                  <span style={styles.label}>End Date:</span>
-                  <span style={styles.value}>{formatDate(selectedSubscription.endDate)}</span>
-                </div>
-                <div style={styles.detailItem}>
-                  <span style={styles.label}>Next Billing Date:</span>
-                  <span style={styles.value}>{formatDate(selectedSubscription.nextBillingDate)}</span>
-                </div>
-                <div style={styles.detailItem}>
-                  <span style={styles.label}>Days Until Renewal:</span>
-                  <span style={styles.value}>
-                    {selectedSubscription.daysUntilRenewal !== null && 
-                     selectedSubscription.daysUntilRenewal !== undefined ? 
-                      `${selectedSubscription.daysUntilRenewal} days` : 'N/A'}
-                  </span>
-                </div>
-                <div style={styles.detailItem}>
-                  <span style={styles.label}>Renewal Attempts:</span>
-                  <span style={styles.value}>
-                    {selectedSubscription.renewalAttempts || 0} / {selectedSubscription.maxRenewalAttempts || 3}
-                  </span>
-                </div>
-                <div style={styles.detailItem}>
-                  <span style={styles.label}>Payment Failure:</span>
-                  <span style={styles.value}>
-                    {selectedSubscription.paymentFailure ? '⚠️ Yes' : '✅ No'}
-                  </span>
-                </div>
-                <div style={{...styles.detailItem, ...styles.detailItemLast}}>
-                  <span style={styles.label}>Last Updated:</span>
-                  <span style={styles.value}>{formatDate(selectedSubscription.updatedAt)}</span>
-                </div>
-              </div>
-
-              {/* Raw Data for Debugging */}
-              <div style={styles.section}>
-                <div style={styles.sectionHeader}>
-                  <div style={{...styles.sectionIcon, background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: 'white'}}>🔍</div>
-                  <h4 style={styles.sectionTitle}>Raw Data (Debug)</h4>
-                </div>
-                <pre style={{
-                  background: '#f8fafc',
-                  padding: '1rem',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  overflow: 'auto',
-                  maxHeight: '300px',
-                  border: '1px solid #e2e8f0'
-                }}>
-                  {JSON.stringify(selectedSubscription, null, 2)}
-                </pre>
-              </div>
+                  {/* Raw Data for Debugging */}
+                  <div style={styles.section}>
+                    <div style={styles.sectionHeader}>
+                      <div style={{...styles.sectionIcon, background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: 'white'}}>🔍</div>
+                      <h4 style={styles.sectionTitle}>Raw Data (Debug)</h4>
+                    </div>
+                    <pre style={{
+                      background: '#f8fafc',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      overflow: 'auto',
+                      maxHeight: '300px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {JSON.stringify(selectedSubscription, null, 2)}
+                    </pre>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1447,6 +1920,13 @@ const AdminSubscriptionsManagement = () => {
           box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
         }
 
+        .tab-enhanced:hover:not(.active) {
+          background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+          color: #334155;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(148, 163, 184, 0.3);
+        }
+
         .filter-tab-enhanced:hover:not(.active) {
           background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
           color: #334155;
@@ -1525,7 +2005,7 @@ const AdminSubscriptionsManagement = () => {
             grid-template-columns: 1fr !important;
           }
           
-          .filter-tab-enhanced {
+          .filter-tab-enhanced, .tab-enhanced {
             min-width: 100px !important;
             padding: 0.5rem 1rem !important;
           }
@@ -1557,16 +2037,11 @@ const AdminSubscriptionsManagement = () => {
         @media (prefers-reduced-motion: reduce) {
           .btn-enhanced,
           .filter-tab-enhanced,
+          .tab-enhanced,
           .subscription-card-enhanced,
           .modal-content {
             animation: none !important;
             transition: none !important;
-          }
-        }
-
-        @media (prefers-contrast: high) {
-          .btn-enhanced {
-            border: 2px solid currentColor;
           }
         }
 
@@ -1594,7 +2069,7 @@ const AdminSubscriptionsManagement = () => {
           box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
         }
 
-        .filter-tab-enhanced:focus-visible {
+        .filter-tab-enhanced:focus-visible, .tab-enhanced:focus-visible {
           outline: 2px solid #667eea;
           outline-offset: 2px;
         }
