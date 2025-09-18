@@ -922,7 +922,7 @@ const payhereConfig = {
   returnUrl: process.env.PAYHERE_RETURN_URL?.trim() || 'http://localhost:5173/payment-success',
   cancelUrl: process.env.PAYHERE_CANCEL_URL?.trim() || 'http://localhost:5173/payment-cancel',
 
-  apiBaseUrl: process.env.PAYHERE_MODE === 'sandbox'
+  apiBaseUrl: process.env.PAYHERE_MODE === 'live'
     ? 'https://www.payhere.lk/pay/api'
     : 'https://sandbox.payhere.lk/pay/api'
 };
