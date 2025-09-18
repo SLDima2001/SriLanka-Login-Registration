@@ -168,6 +168,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       background: scrolled 
         ? "transparent" 
         : "linear-gradient(to right, rgba(255,255,255,0.1), rgba(255,255,255,0.05))",
+      flexWrap: "wrap", // Allow buttons to wrap on smaller screens
     },
 
     mobileHeader: {
@@ -229,6 +230,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       display: "flex",
       flexDirection: "column",
       gap: "16px",
+      overflowY: "auto", // Allow scrolling for more menu items
     },
 
     mobileCloseButton: {
@@ -308,6 +310,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       position: "relative",
       overflow: "hidden",
       backdropFilter: "blur(10px)",
+      whiteSpace: "nowrap", // Prevent text wrapping
     },
 
     desktopNavButtonActive: {
@@ -323,6 +326,7 @@ const NavBar = ({ adminUser, logoutAdmin }) => {
       boxShadow: "0 8px 25px rgba(59, 130, 246, 0.3)",
       position: "relative",
       overflow: "hidden",
+      whiteSpace: "nowrap", // Prevent text wrapping
     },
 
     notificationBadge: {
@@ -580,6 +584,18 @@ const handleNotificationClick = async (e) => {
     }
   };
 
+  // NEW: Handle subscription management navigation
+  const handleSubscriptionNavigation = () => {
+    try {
+      navigate("/admin/subscriptionmanagement");
+      setMobileMenuOpen(false);
+      setShowNotificationDropdown(false);
+    } catch (error) {
+      console.error("Navigation error:", error);
+      alert("Error navigating to subscription management page");
+    }
+  };
+
   const handleLogout = async () => {
     try {
       const confirmLogout = window.confirm("Are you sure you want to logout?");
@@ -751,6 +767,17 @@ const handleNotificationClick = async (e) => {
             React.createElement(NotificationBadge, { count: pendingOffersCount, isMobile: true })
           ),
 
+          // NEW: Subscription Management button for mobile
+          React.createElement('button', {
+            style: isActiveRoute("/admin/subscriptionmanagement") ? styles.mobileMenuItemActive : styles.mobileMenuItem,
+            onClick: handleSubscriptionNavigation,
+            onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/admin/subscriptionmanagement")),
+            onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/admin/subscriptionmanagement"))
+          },
+            React.createElement('span', { style: styles.menuItemIcon }, '💳'),
+            React.createElement('span', null, 'Subscription Management')
+          ),
+
           React.createElement('button', {
             style: styles.logoutButton,
             onClick: handleLogout,
@@ -819,7 +846,15 @@ const handleNotificationClick = async (e) => {
             onClose: () => setShowNotificationDropdown(false),
             onNavigateToOffers: handleOffersNavigation
           })
-        )
+        ),
+
+        // NEW: Subscription Management button for desktop
+        React.createElement('button', {
+          style: isActiveRoute("/admin/subscriptionmanagement") ? styles.desktopNavButtonActive : styles.desktopNavButton,
+          onClick: handleSubscriptionNavigation,
+          onMouseEnter: (e) => addHoverEffect(e, isActiveRoute("/admin/subscriptionmanagement")),
+          onMouseLeave: (e) => removeHoverEffect(e, isActiveRoute("/admin/subscriptionmanagement"))
+        }, '💳 Subscription Management')
       )
     )
   );

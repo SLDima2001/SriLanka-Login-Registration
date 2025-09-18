@@ -171,10 +171,13 @@ const App = () => {
         path="/admin/offers" 
         element={<AdminProtectedRoute element={<AdminOffersManagement />} />} 
       />
+      
+      {/* FIXED: Admin subscription management - protected route with correct spelling */}
       <Route 
-        path="admin/subscriptionmanagemnt" 
-        element={<AdminProtectedRoute element={<AdminSubscriptionsManagement/>} />} 
+        path="/admin/subscriptionmanagement" 
+        element={<AdminProtectedRoute element={<AdminSubscriptionsManagement />} />} 
       />
+      
       {/* Catch all route - redirect to signin */}
       <Route path="*" element={<Navigate to="/signin" replace />} />
     </Routes>
