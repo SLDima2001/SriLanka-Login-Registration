@@ -22,11 +22,19 @@ dotenv.config();
 const app = express();
 app.use(bodyParser.json());
 app.use(express.json());
-app.use(cors());
+
 
 app.get('/', (req, res) => {
   return res.status(200).send('Welcome to MERN stack');
 });
+
+app.use(cors({
+  origin: ['http://localhost:5555', 'http://localhost:5173'], 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
+
 
 const adminSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
@@ -914,7 +922,7 @@ const payhereConfig = {
   returnUrl: process.env.PAYHERE_RETURN_URL?.trim() || 'http://localhost:5173/payment-success',
   cancelUrl: process.env.PAYHERE_CANCEL_URL?.trim() || 'http://localhost:5173/payment-cancel',
 
-   apiBaseUrl: process.env.PAYHERE_MODE === 'live' 
+   apiBaseUrl: process.env.PAYHERE_MODE === 'sandbox' 
     ? 'https://www.payhere.lk/pay/api' 
     : 'https://sandbox.payhere.lk/pay/api'
 };
@@ -3567,98 +3575,144 @@ app.get('/plans-with-renewal', (req, res) => {
 });
 
 
-
 app.get('/api/admin/auto-renewal-subscriptions', async (req, res) => {
   try {
-    console.log('📊 Fetching admin auto-renewal subscriptions...');
-    const { status, page = 1, limit = 20 } = req.query;
+    console.log('📊 Starting admin subscriptions fetch...');
+    
+    // Test database connection first
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ Database not connected');
+      return res.status(500).json({
+        success: false,
+        message: 'Database connection error'
+      });
+    }
 
-    // Build filter - look for subscriptions with auto-renewal capability
-    let filter = {};
+    const { status, page = 1, limit = 500 } = req.query;
+    
+    console.log('Query parameters:', { status, page, limit });
 
+    // Build filter
+    let filter = { planId: '2' }; // Only Premium subscriptions
     if (status && status !== 'all') {
       filter.status = status;
     }
 
-    // Get subscriptions with potential for auto-renewal (Premium plans)
-    const baseFilter = {
-      ...filter,
-      planId: '2' // Only Premium subscriptions can have auto-renewal
-    };
+    console.log('🔍 Using filter:', filter);
 
-    console.log('🔍 Using filter:', baseFilter);
+    // Test collection access
+    const totalCount = await Subscription.countDocuments(filter);
+    console.log(`📊 Total matching subscriptions: ${totalCount}`);
+
+    if (totalCount === 0) {
+      return res.json({
+        success: true,
+        subscriptions: [],
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: 0,
+          totalItems: 0,
+          limit: parseInt(limit)
+        },
+        stats: {
+          totalSubscriptions: 0,
+          totalAutoRenewal: 0,
+          activeAutoRenewal: 0,
+          pendingRenewal: 0,
+          failedRenewal: 0
+        },
+        message: 'No premium subscriptions found in database'
+      });
+    }
 
     // Get subscriptions with pagination
-    const subscriptions = await Subscription.find(baseFilter)
-      .sort({ createdAt: -1 }) // Most recent first
+    const subscriptions = await Subscription.find(filter)
+      .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .lean(); // Use lean() for better performance
+      .lean();
 
-    console.log(`📋 Found ${subscriptions.length} subscriptions`);
+    console.log(`📋 Raw subscriptions found: ${subscriptions.length}`);
 
-    // Enrich subscriptions with user details and calculate days until renewal
-    const subscriptionsWithDetails = await Promise.all(
-      subscriptions.map(async (subscription) => {
-        try {
-          // Find user details
-          const user = await User.findOne({
-            $or: [
-              { userId: subscription.userId },
-              { email: subscription.userEmail }
-            ]
-          }).select('firstName lastName email businessName').lean();
+    // Enrich with user details
+    const subscriptionsWithDetails = [];
+    
+    for (const subscription of subscriptions) {
+      try {
+        // Find user details
+        const user = await User.findOne({
+          $or: [
+            { userId: subscription.userId },
+            { email: subscription.userEmail }
+          ]
+        }).select('firstName lastName email businessName userType').lean();
 
-          // Calculate days until renewal
-          let daysUntilRenewal = null;
-          if (subscription.nextBillingDate) {
-            const today = new Date();
-            const billingDate = new Date(subscription.nextBillingDate);
-            daysUntilRenewal = Math.ceil((billingDate - today) / (1000 * 60 * 60 * 24));
-          } else if (subscription.endDate) {
-            const today = new Date();
-            const endDate = new Date(subscription.endDate);
-            daysUntilRenewal = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-          }
+        console.log(`User lookup for subscription ${subscription._id}:`, user ? 'found' : 'not found');
 
-          return {
-            ...subscription,
-            userDetails: user || {
-              firstName: 'Unknown',
-              lastName: 'User',
-              email: subscription.userEmail || 'N/A',
-              businessName: 'N/A'
-            },
-            daysUntilRenewal: daysUntilRenewal,
-            // Ensure required fields exist
-            renewalAttempts: subscription.renewalAttempts || 0,
-            maxRenewalAttempts: subscription.maxRenewalAttempts || 3,
-            autoRenew: subscription.autoRenew || false
-          };
-        } catch (error) {
-          console.error(`Error enriching subscription ${subscription._id}:`, error);
-          return {
-            ...subscription,
-            userDetails: {
-              firstName: 'Error',
-              lastName: 'Loading',
-              email: subscription.userEmail || 'N/A',
-              businessName: 'N/A'
-            },
-            daysUntilRenewal: null,
-            renewalAttempts: subscription.renewalAttempts || 0,
-            maxRenewalAttempts: subscription.maxRenewalAttempts || 3,
-            autoRenew: subscription.autoRenew || false
-          };
+        // Calculate days until renewal
+        let daysUntilRenewal = null;
+        if (subscription.nextBillingDate) {
+          const today = new Date();
+          const billingDate = new Date(subscription.nextBillingDate);
+          daysUntilRenewal = Math.ceil((billingDate - today) / (1000 * 60 * 60 * 24));
+        } else if (subscription.endDate) {
+          const today = new Date();
+          const endDate = new Date(subscription.endDate);
+          daysUntilRenewal = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
         }
-      })
-    );
 
-    // Get total count for pagination
-    const totalCount = await Subscription.countDocuments(baseFilter);
+        const enrichedSubscription = {
+          ...subscription,
+          userDetails: user ? {
+            firstName: user.firstName || 'Unknown',
+            lastName: user.lastName || 'User', 
+            email: user.email || subscription.userEmail || 'N/A',
+            businessName: user.businessName || 'N/A',
+            userType: user.userType || 'individual'
+          } : {
+            firstName: 'Unknown',
+            lastName: 'User',
+            email: subscription.userEmail || 'N/A',
+            businessName: 'N/A',
+            userType: 'unknown'
+          },
+          daysUntilRenewal: daysUntilRenewal,
+          renewalAttempts: subscription.renewalAttempts || 0,
+          maxRenewalAttempts: subscription.maxRenewalAttempts || 3,
+          autoRenew: subscription.autoRenew || false,
+          paymentFailure: subscription.paymentFailure || false,
+          payhereRecurringToken: subscription.payhereRecurringToken || null,
+          lastRenewalDate: subscription.lastRenewalDate || null,
+          billingCycle: subscription.billingCycle || 'monthly'
+        };
+
+        subscriptionsWithDetails.push(enrichedSubscription);
+
+      } catch (enrichError) {
+        console.error(`Error enriching subscription ${subscription._id}:`, enrichError);
+        
+        // Add subscription with error details
+        subscriptionsWithDetails.push({
+          ...subscription,
+          userDetails: {
+            firstName: 'Error',
+            lastName: 'Loading',
+            email: subscription.userEmail || 'N/A',
+            businessName: 'N/A',
+            userType: 'error'
+          },
+          daysUntilRenewal: null,
+          renewalAttempts: subscription.renewalAttempts || 0,
+          maxRenewalAttempts: subscription.maxRenewalAttempts || 3,
+          autoRenew: subscription.autoRenew || false,
+          paymentFailure: subscription.paymentFailure || false
+        });
+      }
+    }
 
     // Calculate statistics
     const stats = {
+      totalSubscriptions: await Subscription.countDocuments({ planId: '2' }),
       totalAutoRenewal: await Subscription.countDocuments({
         planId: '2',
         autoRenew: true
@@ -3676,12 +3730,13 @@ app.get('/api/admin/auto-renewal-subscriptions', async (req, res) => {
         planId: '2',
         $or: [
           { status: 'payment_failed' },
-          { renewalAttempts: { $gt: 0 } }
+          { renewalAttempts: { $gt: 0 } },
+          { paymentFailure: true }
         ]
       })
     };
 
-    console.log('📊 Statistics calculated:', stats);
+    console.log('📊 Final statistics:', stats);
     console.log(`📦 Returning ${subscriptionsWithDetails.length} subscriptions`);
 
     res.json({
@@ -3697,10 +3752,11 @@ app.get('/api/admin/auto-renewal-subscriptions', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error fetching admin subscriptions:', error);
+    console.error('❌ Error in auto-renewal subscriptions endpoint:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch subscriptions: ' + error.message
+      message: 'Failed to fetch subscriptions: ' + error.message,
+      error: error.toString()
     });
   }
 });
@@ -3743,6 +3799,13 @@ app.get('/api/admin/renewal-monitoring', async (req, res) => {
   try {
     console.log('📊 Fetching renewal monitoring data...');
 
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database not connected'
+      });
+    }
+
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -3755,85 +3818,81 @@ app.get('/api/admin/renewal-monitoring', async (req, res) => {
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    console.log('📅 Date ranges:', {
-      now: now.toISOString(),
-      tomorrow: tomorrow.toISOString(),
-      nextWeek: nextWeek.toISOString(),
-      thirtyDaysAgo: thirtyDaysAgo.toISOString()
-    });
-
-    // Count renewals due tomorrow
-    const dueTomorrow = await Subscription.countDocuments({
-      planId: '2',
-      status: 'active',
-      $or: [
-        {
-          nextBillingDate: {
-            $gte: now,
-            $lte: tomorrow
-          }
-        },
-        {
-          endDate: {
-            $gte: now,
-            $lte: tomorrow
+    // Use Promise.all for better performance
+    const [dueTomorrow, dueThisWeek, failedRenewals, cancelledDueToFailure, totalAutoRenewalSubscriptions] = await Promise.all([
+      // Count renewals due tomorrow
+      Subscription.countDocuments({
+        planId: '2',
+        status: 'active',
+        $or: [
+          {
+            nextBillingDate: {
+              $gte: now,
+              $lte: tomorrow
+            }
           },
-          autoRenew: true
-        }
-      ]
-    });
-
-    // Count renewals due this week
-    const dueThisWeek = await Subscription.countDocuments({
-      planId: '2',
-      status: 'active',
-      $or: [
-        {
-          nextBillingDate: {
-            $gte: now,
-            $lte: nextWeek
+          {
+            endDate: {
+              $gte: now,
+              $lte: tomorrow
+            },
+            autoRenew: true
           }
-        },
-        {
-          endDate: {
-            $gte: now,
-            $lte: nextWeek
+        ]
+      }),
+
+      // Count renewals due this week
+      Subscription.countDocuments({
+        planId: '2',
+        status: 'active',
+        $or: [
+          {
+            nextBillingDate: {
+              $gte: now,
+              $lte: nextWeek
+            }
           },
-          autoRenew: true
-        }
-      ]
-    });
+          {
+            endDate: {
+              $gte: now,
+              $lte: nextWeek
+            },
+            autoRenew: true
+          }
+        ]
+      }),
 
-    // Count failed renewals (currently in retry state)
-    const failedRenewals = await Subscription.countDocuments({
-      planId: '2',
-      $or: [
-        { status: 'pending_renewal' },
-        {
-          status: 'active',
-          renewalAttempts: { $gt: 0, $lt: 3 }
-        }
-      ]
-    });
+      // Count failed renewals
+      Subscription.countDocuments({
+        planId: '2',
+        $or: [
+          { status: 'pending_renewal' },
+          { status: 'payment_failed' },
+          {
+            status: 'active',
+            renewalAttempts: { $gt: 0, $lt: 3 }
+          }
+        ]
+      }),
 
-    // Count subscriptions cancelled due to payment failure in last 30 days
-    const cancelledDueToFailure = await Subscription.countDocuments({
-      planId: '2',
-      status: 'cancelled',
-      updatedAt: { $gte: thirtyDaysAgo },
-      $or: [
-        { cancelReason: /payment/i },
-        { renewalAttempts: { $gte: 3 } },
-        { paymentFailure: true }
-      ]
-    });
+      // Count cancelled due to failure
+      Subscription.countDocuments({
+        planId: '2',
+        status: 'cancelled',
+        updatedAt: { $gte: thirtyDaysAgo },
+        $or: [
+          { paymentFailure: true },
+          { renewalAttempts: { $gte: 3 } }
+        ]
+      }),
 
-    // Total auto-renewal subscriptions
-    const totalAutoRenewalSubscriptions = await Subscription.countDocuments({
-      planId: '2',
-      autoRenew: true,
-      status: { $in: ['active', 'pending_renewal'] }
-    });
+      // Total auto-renewal subscriptions
+      Subscription.countDocuments({
+        planId: '2',
+        autoRenew: true,
+        status: { $in: ['active', 'pending_renewal'] }
+      })
+    ]);
 
     const monitoring = {
       dueTomorrow,
@@ -3843,7 +3902,7 @@ app.get('/api/admin/renewal-monitoring', async (req, res) => {
       totalAutoRenewalSubscriptions
     };
 
-    console.log('📊 Monitoring data:', monitoring);
+    console.log('📊 Monitoring data calculated:', monitoring);
 
     res.json({
       success: true,
@@ -3976,38 +4035,84 @@ app.delete('/api/debug/clean-user-subscriptions/:email', async (req, res) => {
 
 app.get('/api/admin/debug-subscriptions', async (req, res) => {
   try {
-    // Get a few sample subscriptions with all fields
-    const samples = await Subscription.find({})
-      .limit(3)
-      .lean();
+    console.log('🐛 Running comprehensive debug check...');
+    
+    const debug = {
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: mongoose.connection.readyState === 1,
+        name: mongoose.connection.name || 'unknown',
+        host: mongoose.connection.host || 'unknown'
+      },
+      models: {
+        Subscription: !!Subscription,
+        User: !!User
+      },
+      collections: {}
+    };
 
-    // Get field analysis
-    const fieldAnalysis = {};
-    if (samples.length > 0) {
-      const sampleDoc = samples[0];
-      Object.keys(sampleDoc).forEach(key => {
-        fieldAnalysis[key] = {
-          type: typeof sampleDoc[key],
-          hasValue: sampleDoc[key] !== null && sampleDoc[key] !== undefined,
-          value: sampleDoc[key]
+    if (debug.database.connected) {
+      try {
+        // Test collections
+        const [totalSubs, premiumSubs, activeSubs, totalUsers] = await Promise.all([
+          Subscription.countDocuments(),
+          Subscription.countDocuments({ planId: '2' }),
+          Subscription.countDocuments({ status: 'active' }),
+          User.countDocuments()
+        ]);
+
+        debug.collections = {
+          totalSubscriptions: totalSubs,
+          premiumSubscriptions: premiumSubs,
+          activeSubscriptions: activeSubs,
+          totalUsers: totalUsers
         };
-      });
+
+        // Get sample subscription
+        const sampleSub = await Subscription.findOne({ planId: '2' }).lean();
+        if (sampleSub) {
+          debug.sample = {
+            id: sampleSub._id,
+            userId: sampleSub.userId,
+            userEmail: sampleSub.userEmail,
+            planId: sampleSub.planId,
+            status: sampleSub.status,
+            hasAutoRenew: sampleSub.autoRenew
+          };
+
+          // Test user lookup for sample
+          if (sampleSub.userId) {
+            const sampleUser = await User.findOne({ userId: sampleSub.userId }).lean();
+            debug.userLookupTest = sampleUser ? {
+              found: true,
+              name: `${sampleUser.firstName} ${sampleUser.lastName}`,
+              email: sampleUser.email
+            } : { found: false, userId: sampleSub.userId };
+          }
+        } else {
+          debug.sample = null;
+          debug.message = 'No premium subscriptions found in database';
+        }
+
+      } catch (queryError) {
+        debug.collections.error = queryError.message;
+      }
     }
 
     res.json({
-      success: true,
-      message: 'Debug information',
-      totalSubscriptions: await Subscription.countDocuments(),
-      sampleSubscriptions: samples,
-      fieldAnalysis: fieldAnalysis,
-      timestamp: new Date().toISOString()
+      success: debug.database.connected && debug.models.Subscription && debug.models.User,
+      debug: debug
     });
 
   } catch (error) {
-    console.error('Debug endpoint error:', error);
+    console.error('🐛 Debug endpoint error:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      debug: {
+        timestamp: new Date().toISOString(),
+        fatal: true
+      }
     });
   }
 });
