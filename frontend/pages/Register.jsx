@@ -17,11 +17,163 @@ const Register = () => {
   const [error, setError] = useState("");
   const [showTermsPopup, setShowTermsPopup] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const navigate = useNavigate();
+
+  // Validation functions
+  const validateName = (name, fieldName) => {
+    if (!name.trim()) return `${fieldName} is required`;
+    if (name.trim().length < 2) return `${fieldName} must be at least 2 characters`;
+    if (!/^[a-zA-Z\s]+$/.test(name)) return `${fieldName} must contain only letters`;
+    return "";
+  };
+
+  const validateAddress = (address) => {
+    if (!address.trim()) return "Address is required";
+    if (address.trim().length < 10) return "Address must be at least 10 characters";
+    return "";
+  };
+
+  const validateEmail = (email) => {
+    if (!email.trim()) return "Email is required";
+    if (!email.includes('@')) return "Email must contain @ symbol";
+    if (!email.endsWith('.com')) return "Email must end with .com";
+    return "";
+  };
+
+  const validatePhone = (phone) => {
+    if (!phone.trim()) return "Phone number is required";
+    if (!/^\d+$/.test(phone)) return "Phone number must contain only digits";
+    if (phone.length < 10) return "Phone number must be at least 10 digits";
+    return "";
+  };
+
+  const validateBusinessName = (businessName) => {
+    if (!businessName.trim()) return "Business name is required";
+    if (businessName.trim().length < 3) return "Business name must be at least 3 characters";
+    return "";
+  };
+
+  const validateBusinessRegNo = (businessRegNo) => {
+    if (!businessRegNo.trim()) return "Business registration number is required";
+    if (businessRegNo.trim().length < 3) return "Business registration number must be at least 3 characters";
+    return "";
+  };
+
+  const validateBusinessAddress = (businessAddress) => {
+    if (!businessAddress.trim()) return "Business address is required";
+    if (businessAddress.trim().length < 10) return "Business address must be at least 10 characters";
+    return "";
+  };
+
+  const validateUserType = (userType) => {
+    if (!userType) return "User type is required";
+    return "";
+  };
+
+  const validatePassword = (password) => {
+    if (!password) return "Password is required";
+    if (password.length < 6) return "Password must be at least 6 characters";
+    if (!/(?=.*[a-z])(?=.*[A-Z])/.test(password)) return "Password must contain both uppercase and lowercase letters";
+    if (!/(?=.*\d)/.test(password)) return "Password must contain at least one number";
+    return "";
+  };
+
+  const validateConfirmPassword = (confirmPassword, password) => {
+    if (!confirmPassword) return "Please confirm your password";
+    if (confirmPassword !== password) return "Passwords do not match";
+    return "";
+  };
+
+  // Real-time validation function
+  const validateField = (fieldName, value) => {
+    let errorMessage = "";
+    
+    switch (fieldName) {
+      case "firstName":
+        errorMessage = validateName(value, "First name");
+        break;
+      case "lastName":
+        errorMessage = validateName(value, "Last name");
+        break;
+      case "address":
+        errorMessage = validateAddress(value);
+        break;
+      case "email":
+        errorMessage = validateEmail(value);
+        break;
+      case "phone":
+        errorMessage = validatePhone(value);
+        break;
+      case "businessName":
+        errorMessage = validateBusinessName(value);
+        break;
+      case "businessRegNo":
+        errorMessage = validateBusinessRegNo(value);
+        break;
+      case "businessAddress":
+        errorMessage = validateBusinessAddress(value);
+        break;
+      case "userType":
+        errorMessage = validateUserType(value);
+        break;
+      case "password":
+        errorMessage = validatePassword(value);
+        break;
+      case "confirmPassword":
+        errorMessage = validateConfirmPassword(value, password);
+        break;
+      default:
+        break;
+    }
+
+    setFieldErrors(prev => ({
+      ...prev,
+      [fieldName]: errorMessage
+    }));
+
+    return errorMessage === "";
+  };
+
+  // Handle input changes with validation
+  const handleInputChange = (fieldName, value, setter) => {
+    setter(value);
+    validateField(fieldName, value);
+    
+    // Clear general error if field becomes valid
+    if (validateField(fieldName, value)) {
+      setError("");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate all fields before submission
+    const validations = {
+      firstName: validateName(firstName, "First name"),
+      lastName: validateName(lastName, "Last name"),
+      address: validateAddress(address),
+      email: validateEmail(email),
+      phone: validatePhone(phone),
+      businessName: validateBusinessName(businessName),
+      businessRegNo: validateBusinessRegNo(businessRegNo),
+      businessAddress: validateBusinessAddress(businessAddress),
+      userType: validateUserType(userType),
+      password: validatePassword(password),
+      confirmPassword: validateConfirmPassword(confirmPassword, password)
+    };
+
+    setFieldErrors(validations);
+
+    // Check if any field has errors
+    const hasErrors = Object.values(validations).some(error => error !== "");
+    
+    if (hasErrors) {
+      setError("Please fix all validation errors before submitting");
+      return;
+    }
 
     // Check if terms are accepted
     if (!termsAccepted) {
@@ -29,13 +181,8 @@ const Register = () => {
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match!");
-      return;
-    }
-
-    setIsSubmitting(true); // Start loading
-    setError(""); // Clear previous errors
+    setIsSubmitting(true);
+    setError("");
 
     try {
       const response = await axios.post("http://localhost:5555/api/auth/register", {
@@ -49,12 +196,10 @@ const Register = () => {
         businessAddress,
         userType,
         password,
-        termsAccepted // Include terms acceptance in the data sent to API
+        termsAccepted
       });
 
-      // REPLACE the success alert in your Register.js handleSubmit function with this:
       if (response.data.success) {
-        // Updated success message to reflect no automatic subscription creation
         alert(
           "🎉 Registration Successful!\n\n" +
           "✅ Your account has been created and approved\n" +
@@ -70,7 +215,6 @@ const Register = () => {
     } catch (error) {
       console.error("Registration Error:", error);
 
-      // Handle different error scenarios
       if (error.response?.data?.message) {
         setError(error.response.data.message);
       } else if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
@@ -79,7 +223,7 @@ const Register = () => {
         setError("Registration failed. Please try again later.");
       }
     } finally {
-      setIsSubmitting(false); // Stop loading
+      setIsSubmitting(false);
     }
   };
 
@@ -94,7 +238,7 @@ const Register = () => {
   const acceptTerms = () => {
     setTermsAccepted(true);
     setShowTermsPopup(false);
-    setError(""); // Clear any previous error
+    setError("");
   };
 
   return (
@@ -185,24 +329,36 @@ const Register = () => {
             <label style={styles.label}>First Name:</label>
             <input
               type="text"
-              style={styles.input}
+              style={{
+                ...styles.input,
+                borderColor: fieldErrors.firstName ? '#ff4d4d' : '#ddd'
+              }}
               value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
+              onChange={(e) => handleInputChange("firstName", e.target.value, setFirstName)}
               disabled={isSubmitting}
+              placeholder="Enter first name"
             />
+            {fieldErrors.firstName && (
+              <div style={styles.validationError}>{fieldErrors.firstName}</div>
+            )}
           </div>
 
           <div style={styles.formGroup}>
             <label style={styles.label}>Last Name:</label>
             <input
               type="text"
-              style={styles.input}
+              style={{
+                ...styles.input,
+                borderColor: fieldErrors.lastName ? '#ff4d4d' : '#ddd'
+              }}
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
+              onChange={(e) => handleInputChange("lastName", e.target.value, setLastName)}
               disabled={isSubmitting}
+              placeholder="Enter last name"
             />
+            {fieldErrors.lastName && (
+              <div style={styles.validationError}>{fieldErrors.lastName}</div>
+            )}
           </div>
         </div>
 
@@ -210,36 +366,54 @@ const Register = () => {
           <label style={styles.label}>Address:</label>
           <input
             type="text"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: fieldErrors.address ? '#ff4d4d' : '#ddd'
+            }}
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            required
+            onChange={(e) => handleInputChange("address", e.target.value, setAddress)}
             disabled={isSubmitting}
+            placeholder="Enter your full address"
           />
+          {fieldErrors.address && (
+            <div style={styles.validationError}>{fieldErrors.address}</div>
+          )}
         </div>
 
         <div style={styles.formGroup}>
           <label style={styles.label}>Email:</label>
           <input
             type="email"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: fieldErrors.email ? '#ff4d4d' : '#ddd'
+            }}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            onChange={(e) => handleInputChange("email", e.target.value, setEmail)}
             disabled={isSubmitting}
+            placeholder="example@domain.com"
           />
+          {fieldErrors.email && (
+            <div style={styles.validationError}>{fieldErrors.email}</div>
+          )}
         </div>
 
         <div style={styles.formGroup}>
           <label style={styles.label}>Phone Number:</label>
           <input
             type="tel"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: fieldErrors.phone ? '#ff4d4d' : '#ddd'
+            }}
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
+            onChange={(e) => handleInputChange("phone", e.target.value, setPhone)}
             disabled={isSubmitting}
+            placeholder="Enter phone number (digits only)"
           />
+          {fieldErrors.phone && (
+            <div style={styles.validationError}>{fieldErrors.phone}</div>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -247,23 +421,35 @@ const Register = () => {
             <label style={styles.label}>Business Name:</label>
             <input
               type="text"
-              style={styles.input}
+              style={{
+                ...styles.input,
+                borderColor: fieldErrors.businessName ? '#ff4d4d' : '#ddd'
+              }}
               value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              required
+              onChange={(e) => handleInputChange("businessName", e.target.value, setBusinessName)}
               disabled={isSubmitting}
+              placeholder="Enter business name"
             />
+            {fieldErrors.businessName && (
+              <div style={styles.validationError}>{fieldErrors.businessName}</div>
+            )}
           </div>
           <div style={styles.formGroup}>
             <label style={styles.label}>Business Reg No:</label>
             <input
               type="text"
-              style={styles.input}
+              style={{
+                ...styles.input,
+                borderColor: fieldErrors.businessRegNo ? '#ff4d4d' : '#ddd'
+              }}
               value={businessRegNo}
-              onChange={(e) => setBusinessRegNo(e.target.value)}
-              required
+              onChange={(e) => handleInputChange("businessRegNo", e.target.value, setBusinessRegNo)}
               disabled={isSubmitting}
+              placeholder="Enter registration number"
             />
+            {fieldErrors.businessRegNo && (
+              <div style={styles.validationError}>{fieldErrors.businessRegNo}</div>
+            )}
           </div>
         </div>
 
@@ -271,21 +457,30 @@ const Register = () => {
           <label style={styles.label}>Business Address:</label>
           <input
             type="text"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: fieldErrors.businessAddress ? '#ff4d4d' : '#ddd'
+            }}
             value={businessAddress}
-            onChange={(e) => setBusinessAddress(e.target.value)}
-            required
+            onChange={(e) => handleInputChange("businessAddress", e.target.value, setBusinessAddress)}
             disabled={isSubmitting}
+            placeholder="Enter business address"
           />
+          {fieldErrors.businessAddress && (
+            <div style={styles.validationError}>{fieldErrors.businessAddress}</div>
+          )}
         </div>
 
         <div style={styles.formGroup}>
           <label style={styles.label}>User Type:</label>
           <select
-            style={{ ...styles.input, padding: "10px" }}
+            style={{
+              ...styles.input,
+              padding: "10px",
+              borderColor: fieldErrors.userType ? '#ff4d4d' : '#ddd'
+            }}
             value={userType}
-            onChange={(e) => setUserType(e.target.value)}
-            required
+            onChange={(e) => handleInputChange("userType", e.target.value, setUserType)}
             disabled={isSubmitting}
           >
             <option value="">-- Select User Type --</option>
@@ -293,30 +488,45 @@ const Register = () => {
             <option value="Company">Company</option>
             <option value="Agency">Agency</option>
           </select>
+          {fieldErrors.userType && (
+            <div style={styles.validationError}>{fieldErrors.userType}</div>
+          )}
         </div>
 
         <div style={styles.formGroup}>
           <label style={styles.label}>Password:</label>
           <input
             type="password"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: fieldErrors.password ? '#ff4d4d' : '#ddd'
+            }}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
+            onChange={(e) => handleInputChange("password", e.target.value, setPassword)}
             disabled={isSubmitting}
+            placeholder="Enter password"
           />
+          {fieldErrors.password && (
+            <div style={styles.validationError}>{fieldErrors.password}</div>
+          )}
         </div>
 
         <div style={styles.formGroup}>
           <label style={styles.label}>Confirm Password:</label>
           <input
             type="password"
-            style={styles.input}
+            style={{
+              ...styles.input,
+              borderColor: fieldErrors.confirmPassword ? '#ff4d4d' : '#ddd'
+            }}
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
+            onChange={(e) => handleInputChange("confirmPassword", e.target.value, setConfirmPassword)}
             disabled={isSubmitting}
+            placeholder="Confirm password"
           />
+          {fieldErrors.confirmPassword && (
+            <div style={styles.validationError}>{fieldErrors.confirmPassword}</div>
+          )}
         </div>
 
         {/* Terms and Conditions Checkbox */}
@@ -398,10 +608,13 @@ const styles = {
     width: "500px",
     textAlign: "center",
     zIndex: 1,
+    maxHeight: "90vh",
+    overflowY: "auto",
   },
   formGroup: {
     marginBottom: "15px",
     textAlign: "left",
+    flex: 1,
   },
   label: {
     display: "block",
@@ -409,6 +622,7 @@ const styles = {
     fontWeight: "bold",
     color: "#333",
     textTransform: "uppercase",
+    marginBottom: "5px",
   },
   input: {
     width: "100%",
@@ -416,8 +630,7 @@ const styles = {
     border: "2px solid #ddd",
     borderRadius: "6px",
     fontSize: "16px",
-    marginTop: "5px",
-    transition: "0.4s",
+    transition: "border-color 0.3s",
     outline: "none",
     backgroundColor: "rgba(255, 255, 255, 0.8)",
     boxSizing: "border-box",
@@ -439,6 +652,16 @@ const styles = {
     marginBottom: "10px",
     fontSize: "14px",
     fontWeight: "bold",
+    backgroundColor: "#ffebee",
+    padding: "8px",
+    borderRadius: "4px",
+    border: "1px solid #ffcdd2",
+  },
+  validationError: {
+    color: "#ff4d4d",
+    fontSize: "12px",
+    marginTop: "4px",
+    fontWeight: "normal",
   },
   link: {
     color: "#ff4d4d",
