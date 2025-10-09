@@ -355,7 +355,7 @@ function SubscriptionPage() {
     try {
       console.log('Creating subscription record...');
 
-      const response = await fetch('http://localhost:5555/create-subscription-record', {
+      const response = await fetch('http://localhost:5555/api/subscription/create-subscription-record', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -509,7 +509,7 @@ function SubscriptionPage() {
 
       console.log('Creating free subscription...');
 
-      const response = await fetch('http://localhost:5555/create-free-subscription', {
+      const response = await fetch('http://localhost:5555/api/subscription/create-free-subscription', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

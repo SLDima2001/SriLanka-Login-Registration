@@ -936,7 +936,7 @@ const fetchSubscription = async (userId) => {
       const today = new Date();
 
       if (startDate <= today) {
-        await axios.post('http://localhost:5555/api/send-offer-notification', {
+        await axios.post('http://localhost:5555/api/businesses/send-offer-notification', {
           userEmail: userDetails.email,
           userName: `${userDetails.firstName} ${userDetails.lastName}`,
           businessName: business?.name || 'Your Business',
